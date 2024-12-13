@@ -1,0 +1,260 @@
+---
+title: "Night Sky Report Data Exploration"
+author: "Erik Meyer"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  alpha_code:
+    label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
+    value: UNIT
+    input: text
+   
+ 
+---
+
+```{r packages, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+knitr::opts_chunk$set()
+
+packages = c("EnvStats", "reshape2",
+             "ggplot2", "ggthemes",
+             "pander", "plyr",
+             "lubridate", "readxl","tcltk",
+             "svDialogs","tcltk2", "tidyverse","vtable",
+             "data.table","ggpubr","knitr","readr", "sjmisc","janitor","dplyr",
+             "DT","tmap","scales","leaflet", "shiny", "rsconnect", "english",
+             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr")
+
+## Now load or install & load all
+package.check <- lapply(
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+      library(x, character.only = TRUE)
+    }
+  }
+)
+
+
+```
+
+## Data Exploration for Night Sky Reports
+
+Utilize the following table and linked information to inform choosing a site of interest for the data report automation. This should be run first for the reporting park. The ensuing html report can help inform setting parameters for when running the "NSreportmkdown.Rmd". Simply copy and paste the data set id and site name into the parameters. The site you choose can be one of high value night sky resource or one that has been impacted by skyglow. 
+
+```{r dataimport, message=FALSE, include=FALSE}
+data<-read_excel(".//Reference//NPMapsQuery.xlsx")
+#create park code field for filtering
+data$parkcode<-substr(data$DNIGHT, 1, 4)
+#pcode<-"PORE"
+pcode<-params$alpha_code
+###DATA WRANGLING: NPMAPsQuery dataset
+#create report dataset
+repdata<-data %>%
+  filter(parkcode==pcode)
+#Add hmrFull image field
+repdata$FULL_LINK<-paste("https://www.nps.gov/subjects/nightskies/graphics/",gsub("\\_.*","_hmrFULL.jpg",repdata$FULLPATH), sep="")
+#Add hmrArt image field #subtraction
+repdata$ART_LINK<-paste("https://www.nps.gov/subjects/nightskies/graphics/",gsub("\\_.*","_hmrART.jpg",repdata$ARTPATH), sep="")
+
+repdata$Report_Link<-paste("https://www.nps.gov/subjects/nightskies/NSQreport.html?DNIGHT=", repdata$DNIGHT, sep="")
+
+```
+
+
+
+
+Table 1: `r (pcode)` sky brightness metrics derived from the observed images. 
+
+
+
+
+```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
+
+library(forstringr)
+#create dataset for table4 data
+tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS) %>% 
+  arrange(MID_DATE_LMT)%>%
+  mutate_if(is.numeric, round, 2) %>%
+  mutate(VISSTARS_RATIO=VISSTARS_RATIO*100)
+
+#%>%  #commenting out due to moving away from lost stars variable
+                        #mutate(loststars=(1-VISSTARS_RATIO)*100)%>%
+                        #relocate(loststars, .after=VISSTARS_RATIO) %>%
+                        #select(-VISSTARS_RATIO)
+
+#convert to better date format
+tab4$Date<-as.character(as.Date(tab4$MID_DATE_LMT))
+
+#need to convert decimal time to hh:mm
+tab4$MID_TIME_LMT<-as.character(tab4$MID_TIME_LMT)
+#take first part of number and separate out the hours
+tab4$Hr<-as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = TRUE, pattern = "."))
+
+#take decimal and convert to minutes
+tab4$dec_min<-round((as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = FALSE, pattern = "."))*.01)*60,digits=0)
+#Add zero before single digits
+tab4$dec_min<-ifelse(nchar(tab4$dec_min)==1,paste("0",tab4$dec_min,sep=""),tab4$dec_min)
+#bring both hh and mm together
+tab4$hhmm<-paste(tab4$Hr,":",tab4$dec_min,sep = "")
+
+
+#select data fields for table 4
+tab4<-tab4 %>% select(SITE_NAME,DNIGHT,Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS)  
+
+#change column names for published table
+colnames(tab4)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Brightness \n (mag/arcsec)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+
+#create dataset for reference values
+refdata<- data.frame(SiteName=c('Urban Sky', 'Natural Sky'),dset=c('' , ''),Date=c('' , ''),Time=c('' , ''), hi=c(39.56,0.80), mvi=c(29.04, 0.40), zb=c(18.00, 22.00), ls=c(8,100), alr=c(64.43,0.00) )
+#refdata$zb<-(round(refdata$zb, digits=2))
+
+#change column names of reference data set to match tab4 dataset
+colnames(refdata)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Brightness \n (mag/arcsec)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+
+#combind data table with reference table
+tab4<-rbind(tab4,refdata)
+
+#create table formatted for report
+ft4<-flextable(tab4) %>% 
+  align(j=1,align="left", part="all") %>% 
+  align(j=c(2:9),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit() %>% 
+  border_outer()%>% 
+  border_inner()
+
+#find row number for urban sky for relative placement of superscript
+urbannum<-which(tab4[1] == 'Urban Sky')
+#find row number for natural sky for relative placement of superscript
+natnum<-which(tab4[1] == 'Natural Sky')
+
+#Add first superscript (A)
+#ft4a<-compose(ft4, i=1, j=4,part="header", value=as_paragraph( "Max. Vertical \n Illuminance",
+    #as_sup(" A"),"\n (mlx)"))
+#Add second superscript (b)  
+ft4a<- compose(ft4, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky",as_sup(" A"))) 
+#Add third superscript (c)
+ft4b<-compose(ft4a, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
+#add superscript 2
+ft4c<-compose(ft4b, i=1, j=5,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
+
+
+#print table
+ft4c
+
+
+```
+
+
+^A^ Rock Creek Park in Washington, DC was used as the urban sky reference.
+
+^B^ The median natural sky is the natural reference condition.
+
+
+
+
+
+
+
+Table 2: `r (pcode)` visual and SQM measurements. 
+
+
+```{r table5, echo=FALSE, ft.align="center", out.width = '100%'}
+
+#create dataset for table5 data
+tab5<-repdata %>% select(SITE_NAME,DNIGHT, MID_DATE_LMT, BORTLE, ZLM, SQM) %>% #Need to verify correct measures
+  arrange(MID_DATE_LMT)%>%
+  mutate_if(is.numeric, round, 2) 
+
+#convert to better date format
+tab5$MID_DATE_LMT<-as.character(as.Date(tab5$MID_DATE_LMT))
+
+
+#change column names for published table
+colnames(tab5)<- c("Site Name","Dataset","Date","Bortle\n Class","Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
+
+#create dataset for reference values
+refdatabc<- data.frame(SiteName=c('Urban Sky', 'Natural Sky'),dset=c('' , ''),Date=c('' , ''),bc=c(8,1), lm=c(5.2, 7.0), sqm=c(18.36, 22.00))
+#refdata$zb<-(round(refdata$zb, digits=2))
+
+#change column names of reference data set to match tab4 dataset
+colnames(refdatabc)<-  c("Site Name","Dataset","Date","Bortle\n Class","Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
+
+#combind data table with reference table
+tab5<-rbind(tab5,refdatabc)
+
+#create table formatted for report
+ft5<-flextable(tab5) %>% 
+  align(j=1,align="left", part="all") %>% 
+  align(j=c(2:4),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit() %>% 
+  border_outer()%>% 
+  border_inner()
+
+#find row number for urban sky for relative placement of superscript
+urbannum<-which(tab5[1] == 'Urban Sky')
+#find row number for natural sky for relative placement of superscript
+natnum<-which(tab5[1] == 'Natural Sky')
+
+#Add first superscript (A)
+
+ft5a<- compose(ft5, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky",as_sup(" A"))) 
+#Add third superscript (c)
+ft5b<-compose(ft5a, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
+#add superscript 2
+ft5c<-compose(ft5b, i=1, j=4,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
+#print table
+ft5c
+
+```
+
+
+
+^A^ Rock Creek Park in Washington, DC was used as the urban sky reference.
+
+^B^ The median natural sky is the natural reference condition.
+
+
+
+## Data Exploration Links
+
+```{r appenda, echo=FALSE,results = 'asis'}
+#create dataset for table data and fromat on survey date
+appenda<-repdata %>% select(DNIGHT,MID_DATE_LMT, SITE_NAME, NARRATIVE,Report_Link,FULL_LINK,ART_LINK) %>% 
+  arrange(MID_DATE_LMT) %>%
+  mutate(Date = as.Date(MID_DATE_LMT, format = "%d/%m/%Y"))
+
+
+
+for (i in 1:length(appenda$DNIGHT)) {
+            cat(paste("On ", appenda$Date[i], ", at ",appenda$SITE_NAME[i],":", sep=""))
+            cat("  \n")
+             cat(paste("NP Maps HTML report: ",appenda$Report_Link[i],sep=""))
+            cat("  \n")
+            cat(paste("Full resolution mosaic: ",appenda$FULL_LINK[i],sep="")) 
+            cat("  \n")  
+            cat(paste("Estimated artificial sky glow: ",appenda$ART_LINK[i],sep=""))
+  cat("  \n") 
+  cat("  \n") 
+    
+}
+
+```
+
+
+
+```{r remove, include=FALSE}
+rm(list=ls())
+
+```

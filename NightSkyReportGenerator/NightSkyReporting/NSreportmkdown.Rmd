@@ -1,0 +1,1029 @@
+---
+output: 
+  word_document:
+    reference_docx: template.docx
+params:
+  fullname: 
+    label: "Type the park name as you would like in the report (ex.Yosemite National Park)"
+    value: National Park
+    input: text
+  alpha_code:
+    label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
+    value: UNIT
+    input: text
+    plottitle:
+  viirsyear:
+    label: "Enter the year of the last viirs satellite/ALR model"
+    value: 2022
+    input: slider
+    min: 2015
+    max: 2035
+    step: 1
+    sep: ""
+  censusyear:
+    label: "Enter the year of the census data used"
+    value: 2020
+    input: slider
+    min: 2015
+    max: 2035
+    step: 1
+    sep: ""
+  sdist:
+    label: "#Enter geographic source distance here. Max is 300 km but could change if 300 km doesnt make sense for this location"
+    value: 300
+    input: slider
+    min: 50
+    max: 300
+    step: 1
+    sep: ""
+  soi:
+    label: "Enter the site of interest to highlight in the report (make sure it is how it is spelled out in data exploration report:"
+    value: ex."Sentinel Dome"
+    input: text
+  soidset:
+    label: "Enter the soi dataset from the data exploration report:"
+    value: ex."YOSE050907"
+    input: text
+  soidate:
+    label: "Enter the enter soi dataset date:"
+    value: ex."Month DD, YYYY"
+    input: text
+       
+---    
+
+```{r packages, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+knitr::opts_chunk$set()
+
+packages = c("EnvStats", "reshape2",
+             "ggplot2", "ggthemes",
+             "pander", "plyr",
+             "lubridate", "readxl","tcltk",
+             "svDialogs","tcltk2", "tidyverse","vtable",
+             "data.table","ggpubr","knitr","readr", "sjmisc","janitor","dplyr",
+             "DT","tmap","scales","leaflet", "shiny", "rsconnect", "english",
+             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr")
+
+## Now load or install & load all
+package.check <- lapply(
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+      library(x, character.only = TRUE)
+    }
+  }
+)
+
+
+```
+
+
+
+
+
+
+```{r params store, include=FALSE}
+
+park<-params$fullname
+pcode<-params$alpha_code
+soi<-params$soi 
+soidset<-params$soidset 
+soidate<-params$soidate 
+sdist<-params$sdist 
+viirsyear<-params$viirsyear 
+censusyear<-params$censusyear 
+
+```
+
+:::{custom-style="sr Title"}
+Night Skies Data Report
+:::
+
+:::{custom-style="sr Subtitle"}
+Photometric Assessment of Night Sky Quality at `r (park)`
+:::
+
+
+
+```{r coverimage, echo=FALSE, ft.align="center",out.width = '100%'}
+covlink<-paste("https://www.nps.gov/subjects/nightskies/graphics/", soidset,".png", sep="")
+include_graphics(covlink)
+
+```
+
+:::{custom-style="sr Photo caption"}
+Fisheye view of the night sky over `r (park)` in false color.
+:::
+
+:::{custom-style="sr Cover photo credits"}
+NPS/NIGHT SKIES PROGRAM
+::: 
+
+
+
+
+
+:::{custom-style="sr Normal"}
+FirstName MiddleInitial. LastName (ORCID if available)^1^, FirstName MiddleInitial. LastName^2^, FirstName MiddleInitial. LastName^1^
+
+^1^ Organization Name, Office/Unit Name 1 (optional) (NPS Office/Unit, University Dept., etc.), Street Address, City Name, ST ZipCode (zip is optional)
+
+^2^ Organization Name, Office/Unit Name 2 (optional) (NPS Office/Unit, University Dept., etc.), Street Address, City Name, ST ZipCode (zip is optional)
+
+User Note (optional): see the First/Title page section of the online user guide for additional guidance.
+
+
+\newpage
+:::
+
+```{r datawrangle, include=FALSE}
+
+pcat<-paste(park," (",pcode,")",sep="")
+###Start gathering data summaries for NPMaps Query data
+### most of the metrics reported are here
+#import full dataset
+data<-read_excel(".//Reference//NPMapsQuery.xlsx")
+#create park code field for filtering
+data$parkcode<-substr(data$DNIGHT, 1, 4)
+
+###DATA WRANGLING: NPMAPsQuery dataset
+#create report dataset
+repdata<-data %>%
+  filter(parkcode==pcode)
+#convert ALR to number
+repdata$ALR_POS<-as.numeric(repdata$ALR_POS)
+#Add hmrFull image field
+repdata$FULL_LINK<-paste("https://www.nps.gov/subjects/nightskies/graphics/",gsub("\\_.*","_hmrFULL.jpg",repdata$FULLPATH), sep="")
+#Add hmrArt image field #subtraction
+repdata$ART_LINK<-paste("https://www.nps.gov/subjects/nightskies/graphics/",gsub("\\_.*","_hmrART.jpg",repdata$ARTPATH), sep="")
+
+
+#count of sites
+sitenum<-n_distinct(repdata$SITE_NAME)
+#count of#count of#count of survey nights
+daynum<-repdata%>%count(DNIGHT)
+daynum<-sum(daynum$n)
+  
+#earliest date
+edate<-min(repdata$MID_DATE_LMT)
+
+#last date
+ldate<-max(repdata$MID_DATE_LMT)
+
+#average zenith luminence(brightness) text to indicate in the report if there are averages or single measurement
+avebrightvar<-as.data.frame(ifelse(count(repdata)==0, "not measured",ifelse(count(repdata)==1, "a single measurement", ifelse(count(repdata)>1, "the average", "**CHECK VAR**"))))
+avebrightvar<-avebrightvar[1,1]
+#average zenith luminence(brightness)
+avebright<-format(round(mean(repdata$ZENITH_LUM_MSA),2),nsmall=2)
+
+##average star vis text to indicate in the report if there are averages or single measurement
+avestarvisvar<-as.data.frame(ifelse(count(repdata)==0, "not measured",ifelse(count(repdata)==1, "a single measurement", ifelse(count(repdata)>1, "the average", "**CHECK VAR**"))))
+avestarvisvar<-avestarvisvar[1,1]
+#average star visibility
+avestarvis<-percent(mean(repdata$VISSTARS_RATIO, na.rm=TRUE))
+
+#average ALR whole sky
+aveALR<-percent(mean(repdata$ALR_POS, na.rm=TRUE))
+#min ALR Whole sky
+minALR<-percent(min(repdata$ALR_POS, na.rm=TRUE))
+#max ALR whole sky
+maxALR<-percent(max(repdata$ALR_POS, na.rm=TRUE))
+#most frequent class NEED TO CHECK TO SEE IF THIS IS GOOD
+aveALRdec<-mean(repdata$ALR_POS, na.rm=TRUE)
+#ALR to descriptive based on Duriscoe
+alrcat<-ifelse(aveALRdec <= 0.3, "excellent", ifelse(aveALRdec > 0.3 & aveALRdec <= 2.0, "impaired", "not readily visible"))
+
+#create text variable for report
+avesqmvar<-as.data.frame(ifelse(count(repdata)==0, "not measured",ifelse(count(repdata)==1, " single measurement", ifelse(n_distinct(repdata)>1, "average", "CHECK VAR"))))
+avesqmvar<-avesqmvar[1,1]
+#average SQM
+avesqm<-format(round(mean(repdata$SQM, na.rm=TRUE), 2))
+
+# number of datasets
+sumdset<-sum(repdata$DSET, na.rm=TRUE)
+###End gathering data summaries for NPMaps Query data
+
+
+###DATA WRANGLING: BortleClass descriptions dataset
+#returns most frequent value
+bortle<-mfv(repdata$BORTLE)
+#read in bortle class table with descriptions
+bortletable<-read_excel(".//Reference//BortleClass.xlsx")
+# filter by most common bortle value
+bortletable<-bortletable %>%
+  filter(class==bortle,
+         )
+#store associated category
+bortcat<-bortletable$category
+#store associated description
+bortdesc<-bortletable$description  
+
+###DATA WRANGLING: NELM descriptions dataset
+#create text variable for report
+avenelmvar<-as.data.frame(ifelse(n_distinct(repdata$ZLM)==0, "not measured",ifelse(n_distinct(repdata$ZLM)==1, " single measurement", ifelse(n_distinct(repdata$ZLM)>1, "average", "CHECK VAR"))))
+avenelmvar<-avenelmvar[1,1]
+
+#average NELM
+avenelm<-mean(repdata$ZLM, na.rm=TRUE)
+#import nelm table
+nelmcat<-read_excel(".//Reference//NELM.xlsx")
+#filter to average nelm
+nelmcat<-nelmcat %>%
+  mutate(diffnelm=abs(avenelm-nelm)) %>%#absolute of the average and categorical nelm
+  arrange(diffnelm) %>%  
+  slice(1)
+#get nelm description and store
+nelmcatdesc<-nelmcat$description
+
+
+###DATA WRANGLING: ALR model output
+alrmodel<-read_excel(paste(".//Parks//",pcode,"//sALRoutput_",pcode,".xls", sep=""))
+###List all park codes. Should normally be just one but some examples of two like SEKI (both sequoia and kings managed as one unit)
+pmodlist<-unique(alrmodel$UNIT_CODE)
+
+#categorical description model value
+alrmodel$cat<-ifelse(alrmodel$MEAN <= 0.3, "excellent", ifelse(alrmodel$MEAN > 0.3 & alrmodel$MEAN <= 2.0, "impaired", "not readily visible"))
+#get lowest value in model
+alrmodmed<-round(median(alrmodel$MEDIAN),digits=2)
+
+###DATA WRANGLING: ALR model symbology
+alrsymb<-read_excel(".//Reference//ModelSymbology.xlsx")
+# What is the most common color within the park based on ALR map symbology and the median ALR of park
+alrsymb$maincol<-ifelse(alrmodmed > alrsymb$alrlow & alrmodmed <= alrsymb$alrhigh, "TRUE", "FALSE")
+#store the color
+parkmodelcolor<-alrsymb%>%
+  filter(maincol==TRUE)%>% #filter based on previous ifelse (median value between symbology colors)
+ select(color)#reduce down to color
+parkcolor<-parkmodelcolor$color
+
+
+###Start gathering data summaries for light pollution source data
+##Must go through arcgis process to generate near table first!
+sources<-read_excel(paste(".//Parks//",pcode,"//ReportPark_NearTable_",pcode,".xlsx", sep=""))
+sources$NAME<-gsub(' city', '', sources$NAME)
+sources$NAME<-gsub(' City', '', sources$NAME)
+sources$NAME<-gsub(' CDP', '', sources$NAME)
+
+#convert distance in meters to km
+sources$dist_km<-round(sources$NEAR_DIST*.001,digits=0)
+#calculate d in walkers law
+sources$d<-sources$dist_km^-2.5
+#calculate walkers law
+sources$walkers<-round((0.01*sources$P0010001*sources$d)*100,digits = 2)
+#correct azimuth from arcpro nearest angle calculation
+sources$azimuth<-ifelse(sources$NEAR_ANGLE>0, sources$NEAR_ANGLE, (360+sources$NEAR_ANGLE))
+sources$azimuth<-round(sources$azimuth, digits=0)
+##Now subset data based on site of interest
+lightsource<-sources%>%
+  filter(SITE_NAME==soi, DNIGHT==soidset, dist_km < sdist, walkers>0)%>%
+  arrange(desc(walkers))%>%
+  top_n(10,walkers)%>%
+  select(NAME,P0010001,dist_km,azimuth,walkers)
+#list of cities for report
+citylist<-list(lightsource$NAME)
+
+##Now subset data based on site of interest
+top3cities<-lightsource%>%
+  arrange(desc(P0010001))%>%
+  top_n(3,P0010001)%>%
+  select(NAME)
+#list of cities for report
+topcitylist<-list(top3cities$NAME)
+
+
+
+# file path to park specific figures
+
+park.folder <-paste(".//Figures//",pcode,"//", sep="")
+
+
+```
+
+
+:::{custom-style="sr Normal"}
+# Abstract
+This report characterizes night sky conditions in `r (pcat)` using measurements made in the park unit and models of regional conditions based on satellite data. Calibrated night sky imagery was obtained to characterize the night sky at `r (sitenum)` sites. These ground-based observations were collected on `r (daynum)` nights from `r (edate)` to `r (ldate)`. Satellite data from `r (viirsyear)` was used to create a map of predicted night sky conditions in and around the park.
+
+The sky overhead remains **~[insert manual description]** with an `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^. We estimate more than `r (avestarvis)` of stars were still visible for the most of the time, providing an **~[insert manual description]** opportunity to observe the natural night sky from the park. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions on average.
+
+In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, indicating the zenith is darker than what we can accurately measure with a SQM. `r (bortdesc)` The main impacts on `r (pcode)`’s night sky quality were the light domes from
+```{r clist1,echo=FALSE, message=FALSE,results = 'asis'}
+for (i in 1:length(lightsource$NAME)) {
+            cat(paste(lightsource$NAME[i],", ", sep=""))
+             
+ 
+}
+```
+.  **~[insert closing observations here: ex. These light domes were observed along the horizon, with a few exceeding the natural brightness of the Milky Way.]**
+
+
+# Acknowledgements
+The authors would like to acknowledge the staff at `r (park)` for their support in this fieldwork and logistics, notably **~[insert park staff here]**. We also thank the peer reviewers for recommendations that improved this series of reports.
+
+# List of Terms or Acronyms
+
+**aerosol:** Fine solid or liquid particles suspended in the air. Examples include dust, fume, mist, smoke and fog.
+
+**airglow:** Naturally occurring light emitted from the gases in the upper atmosphere. It often appears as a vague and smooth light in the sky that is brighter toward the horizon as compared to the zenith. However, it can sometimes have a banded or wispy character and change in the timescale of minutes.
+
+**airmass:** A measure of the amount of air through which light from outside the atmosphere must pass to reach the observer. It is expressed as a ratio of the atmospheric thickness at the zenith. Mathematically, the airmass equals the secant of the zenith angle.
+
+**all-sky light pollution ratio (ALR):** The ratio of anthropogenic to natural sky brightness averaged over the entire sky. 
+
+**angle of incidence:** The angle between a light ray’s path striking a surface and a line perpendicular to the surface (sometimes called “normal” to a surface).
+
+**anthropogenic:** Caused or generated by humans.
+
+**azimuth:** Angle eastward of true north along the horizon. Moving clockwise on a 360$^\circ$ circle, north has azimuth 0$^\circ$, east 90$^\circ$, south 180$^\circ$, and west 270$^\circ$. 
+
+**Bortle Class:** A nine-level numeric scale that measures the night sky’s brightness of a particular location based on visual observations (Bortle, 2001). It quantifies the observability of celestial objects and the interference caused by light pollution. The rating of one indicates pristine night sky and nine indicates heavily light-polluted sky.
+
+**charge-coupled device (CCD):** A sensitive photon detector made out of a light-sensitive integrated circuit. Within the device, the electrical charge can be manipulated, for example conversion into a digital value.
+
+**crepuscular:** Describing animals that are active primarily during dawn and dusk.
+
+**dark adaptation:** The process by which the eye becomes adapted to dim environments.
+
+**extinction:** The attenuation of light due to absorption and/or scattering.
+
+**extinction coefficient:** A quantitative value for specifying the attenuation of light due to absorption and/or scattering. It is usually expressed in magnitude per airmass.
+
+**glare:** Bright and uncomfortable light shining from the source directly to the observer.
+
+**haze:** An atmospheric aerosol of sufficient concentration to be visible. The particles are so small that they cannot be seen individually, but are still effective in visual range restriction.
+
+**horizontal illuminance:** Illuminance falling upon a horizontally oriented surface, such as level ground.
+illuminance: (1) The light falling upon a surface, or (2) a photometric measure of luminous light incident on a unit surface area. The derived SI unit of illuminance is the lux (lx).
+
+**km:** Kilometer, a metric unit for measuring length. One kilometer is approximately 0.62 miles.
+
+**light dome:** Skyglow from a distant source (such as an urban center) which takes the form of a dome due to the properties of atmospheric scattering of light.
+
+**light pollution:** The alteration of natural light levels in the outdoor environment by manmade sources. Light pollution may degrade the utility, function, biota, or aesthetics of the surrounding environment. Light pollution includes glare, light trespass, and skyglow.
+
+**luminaire:** The complete lighting unit, including the lamp, the fixture, and other parts.
+
+**luminance:** The photometric measure of luminous intensity per unit area of a surface. It describes the amount of light that passes through or is emitted from a particular area, and falling within a solid angle. Luminance is often measured in candela per square meter (cd/m2) or lamberts (L).
+
+**magnitude (mag or mags):** A measure of an astronomical source’s brightness on an inverted logarithmic scale. Brighter sources have smaller magnitudes. A magnitude 0 star is one hundred times brighter than a magnitude 5 star.
+
+**Milky Way:** A barred spiral galaxy containing our own Solar System. When observed from Earth, it appears as an irregular band of light encircling the celestial sphere. It is comprised of vast numbers of faint unresolved stars and dust. Its position and orientation in the sky vary with the seasons and the nightly motion of the sky.
+
+**naked eye limiting magnitude (NELM):** The apparent magnitude of the faintest object visible in the sky with the naked eye. The NELM will depend on the observer, and will increase with the eye’s dark adaptation. On a clear night without the moon and light pollution, the limiting magnitude will be greater than magnitude 6.
+
+**nocturnal:** Happening in or active during the night, or relating to the night.
+
+**photometry:** The measurement of light describing the perceived brightness to the human eye or an astronomical object’s brightness in various electromagnetic spectra.
+
+**seeing:** A measure of the optical steadiness of the air, usually judged by looking at the scintillation of stars or by measuring the size of a point source in the image.
+
+**skyglow:** Anthropogenic light scattered or reflected off of air molecules and atmospheric aerosols, leading to a brightening of the night sky. Skyglow is generally regarded as an aesthetic degradation of the night sky, and will illuminate an observer and the landscape unnaturally.
+
+**upward radiance:** A term used to describe detectable radiant energy emitted into the atmosphere. Upward radiance is often associated with remote sensing measures of light emission. 
+
+**vertical illuminance:** Illuminance striking an upright oriented surface, such as a wall or a piece of paper held up to the light illuminance is a photometric measure of luminous light incident on a unit surface area. The derived SI unit of illuminance is the lux (lx).
+
+**zenith:** The point on the celestial sphere directly overhead.
+
+**zodiacal light:** A faint, smooth, and elongated swath of light visible in the night sky. The zodiacal light appears as a noticeable cone of light near the sun, most visible immediately after evening twilight in the west and immediately before morning twilight in the east. It is caused by sunlight reflected off the dust particles in orbit around the sun.
+
+# Introduction
+
+The night sky is an inseparable element of wild areas for park visitors and wildlife. It reveals an astonishing view into the vast universe, provides markers of daily and seasonal cycles, and features reference points for navigation. Historically, celestial objects and astronomical phenomena have significantly influenced numerous cultures around the globe. Today, star parties often attract many visitors, bringing important benefits to local, regional and national economies. In the National Park Service (NPS), night sky programs are among the most popular interpretive activities at parks, providing unique educational opportunities and an immersive experience connecting visitors to nature. The night sky is a natural, cultural, educational, and economic resource.
+
+The *Organic Act of 1916* specifies the NPS shall conserve resources unimpaired for the enjoyment of future generations. The *General Authorities Act of 1970* specifies high standards for NPS management, referring to “superlative natural, historic, and recreation areas” with “superb environmental quality... managed for the benefit and inspiration of all the people of the United States.” Accordingly, section 4.10 of the *2006 NPS Management Policies* states: “The Service will preserve, to the greatest extent possible, the natural lightscapes of parks, which are natural resources and values that exist in the absence of human-caused light.”
+
+The Natural Sounds and Night Skies Division, in collaboration with NPS regions, parks, and programs, provides servicewide support for night sky and nocturnal resource conservation through measurements, modeling, critical analysis, knowledge synthesis, and informed decision making. This report measures night sky brightness using images taken from inside the park and from a satellite circling the globe. The images taken inside the park provide accurate measurements of the night sky that wildlife and park visitors experience. The satellite images measure the upward radiance of the nighttime earth, providing a regional perspective of the lights that are altering the night sky in the park. Collectively, these data specify the condition of the night sky and the locations of light sources that are degrading it.
+
+In the Methods chapter, we describe data collection and processing procedures for night sky images taken in parks and satellite images of stray light from developed areas. In the Results chapter, we report the sky quality and identify influences from nearby cities as seen in the images. **~[NOTE: Remove following text where necessary for current report] Next, we discuss the natural brightness variation, measurement uncertainty, data quality and anomalies, glare, and long-term trend in the Discussion chapter. Finally, the Conclusions chapter summarizes our findings. In Appendix A: Observation Notes and Panoramic Images, we provide the notes taken by the observers during data collection and a set of panoramic images for each observation event.**
+
+## Regional Setting
+Light from anthropogenic sources has altered the natural luminance of the night sky throughout the continental United States and across much of the globe (Falchi et al., 2016; Kyba et al., 2017). Light from anthropogenic sources that is scattered by or reflected off air molecules and atmospheric aerosols brightens the sky and obscures celestial objects. This is called skyglow. Light sources up to 300 km (∼200 miles) distant can cause skyglow. Skyglow artificially illuminates the landscape and degrades visitor opportunities to view planets, stars, galaxies, and other astronomical objects.
+
+`r (pcat)` is located near **~[insert description of `r (pcode)` here.]** (Figure 1). The park is in **~[Enter `r (pcode)` habitat and landscape description here]**. The nearest populated centers are 
+```{r clist2,echo=FALSE, message=FALSE,results = 'asis'}
+for (i in 1:length(lightsource$NAME)) {
+            cat(paste(lightsource$NAME[i],", ", sep=""))
+             
+ 
+}
+```
+.
+:::
+```{r genmap, echo=FALSE, out.width = '100%',ft.align="center"}
+include_graphics(paste(park.folder,"park_geographic_location.png",sep = ""))
+```
+
+:::{custom-style="sr Figure caption"}
+Figure 1: Geographic location of the park, including the `r (sitenum)` sites from the current study.  `r (park)` is located near **~[Enter broad geographic description here]** . In general, light sources within 300 km could be visible and have the potential to brighten the night sky.
+:::
+
+:::{custom-style="sr Alternate text"}
+Figure 1: Geographic location of the park. `r (park)` is located near  the. In general, light sources within 300 km could be visible and have the potential to brighten the night sky. The park boundary is outlined in dark green with the park area shaded in a lighter green. **~Enter observations near boundary**. There is also a smaller inset map that displays the location of the study area within the greater **~Enter observations of the greater map inset region**, a red square appears around the study area. 
+:::
+
+:::{custom-style="sr Normal"}
+# Methods
+## Imaging the Night Sky
+The NPS developed the camera system and the observing method to collect high-resolution images of the night sky from horizon to horizon (Duriscoe et al., 2007). The NPS camera system is composed of a commercial Nikon lens, a V-band filter, and a research-grade, monochromatic charge-coupled device (CCD). The filter only lets visible light pass through, allowing the detected signal to closely represent what human eyes can see based on our spectral sensitivity. Because each image has limited field of view, a set of images needs to be taken to cover the entire sky. A robotic mount is utilized to automatically position the camera for each image. Each image set takes up to 40 minutes to complete, depending on the specific system used and the exposure time. To minimize the amount of sun and moon light, data are collected when the sun is more than 18◦ below the horizon, and when the moon also is below the horizon. The weather conditions required for data
+collection are clear nights with almost no cloud cover. 
+
+Figure 2 shows a typical NPS Night Skies camera system used from 2010 onward. This camera system captures a composite image of the night sky by creating a mosaic from 45 images of portions of the sky, with each portion spanning a square 24$^\circ$ by 24$^\circ$. Depending on the sky brightness at the observing site, the exposure time is usually set to be somewhere between 8 to 12 seconds for each image. Each resulting image set will yield a 40-million-pixel image mosaic covering the entire night sky and 7$^\circ$ below the horizon.
+
+:::
+
+```{r skycam, echo=FALSE, out.width = '70%', ft.align="center"}
+include_graphics(paste(park.folder,"all_skycam.png",sep=""))
+```
+
+:::{custom-style="sr Figure caption"}
+Figure 2: A typical National Park Service Night Skies Program camera system consists of a commercial lens, a V-band filter, and a CCD camera. The camera system is mounted on a motorized mount, hooked up to external batteries, and controlled by a computer.
+:::
+
+
+:::{custom-style="sr Alternate text"}
+Figure 2: A photograph of a typical National Park Service Night Skies Program camera system. The image displays the camera on a standard tripod setup. The camera consists of a commercial lens, a V-band filter, and a CCD camera. The camera system is mounted on a motorized mount, hooked up to external batteries, and controlled by a computer. In the image, taken at night, the camera is in the foreground. The background includes a mountain landscape, a star-filled sky, prominent visibility of the Milky Way galaxy, and a faint skyglow from anthropogenic light on the horizon.
+:::
+
+:::{custom-style="sr Normal"}
+Between `r (edate)` to `r (ldate)`, NPS collected `r (daynum)` nights of ground-based CCD camera data in `r (pcode)`, yielding `r (sumdset)` complete data sets. Each set is used to generate a panoramic image of the night sky. Table 1 lists the details about each data collection event, including the date, collection site, camera used, number of data sets collected, and observers.
+:::
+
+:::{custom-style="sr Table caption"}
+Table 1: Ground-based data collection events at `r (park)`. ‘Sets’ refers to the number of data sets taken that night; each set yields a panoramic image of the sky.
+:::
+
+<br>
+
+
+```{r table1, echo=FALSE, ft.align="center",out.width = '100%'}
+#create dataset for table data and fromat on survey date
+tab1<-repdata %>% select(MID_DATE_LMT, SITE_NAME, CAMERA, DSET, OBSERVERS) %>% 
+  arrange(MID_DATE_LMT) %>%
+  mutate(Date1 = as.Date(MID_DATE_LMT, format = "%d/%m/%Y"))%>% 
+  select(Date1, SITE_NAME, CAMERA, DSET, OBSERVERS)
+#remove characters
+tab1$OBSERVERS <- sub("\r\n", ", ", tab1$OBSERVERS)
+tab1$OBSERVERS <- sub("\n", "", tab1$OBSERVERS)
+#change column names for report
+colnames(tab1)<- c("Date","Site Name", "Camera", "Sets", "Observers")
+#format table for word report
+flextable(tab1) %>% 
+  align(j=c(1:2),align="left", part="all") %>% 
+  align(j=c(3:4),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit()%>% 
+  border_outer()%>% 
+  border_inner()
+
+
+```
+
+<br>
+
+:::{custom-style="sr Normal"}
+
+## Locating Data Collection Sites
+These observations with the CCD camera are carried out at specific sites in or near the park. In general, higher elevation sites free from nearby obstructions are selected because they provide a clear view of the sky down to the natural horizon. The sites also need to be free from bright and direct glare to prevent image saturation. Additional selection criteria include the accessibility and proximity of the site to stargazing locations, sensitive ecosystems, critical habitat, and future developments. For a small park, one clear site is sufficient to capture the conditions representable across the entire park. For a large park, strategic placement in relation to other measurement sites is also considered to capture the range of sky quality across the park. Each data collection site is listed in Table 2, and located on the map in Figure 1.
+:::
+
+:::{custom-style="sr Table caption"}
+Table 2: Data collection sites at `r (park)`.
+:::
+
+
+<br>
+
+ 
+```{r table2, echo=FALSE, ft.align="center", out.width = '100%'}
+#create dataset for table data
+tab2<-repdata %>% select(SITE_NAME, ELEVATION, LATITUDE, LONGITUDE) %>% 
+  arrange(ELEVATION)
+tab2<-tab2 %>% group_by(SITE_NAME) %>%
+  #average out different lat/long from different site visits
+  summarize(ELEVATION = mean(ELEVATION), LATITUDE = mean(LATITUDE), LONGITUDE = mean(LONGITUDE))
+#change column tables for table
+colnames(tab2)<- c("Site Name","Elevation (m)", "Latitude", "Longitude")
+#create table formatted for report
+flextable(tab2) %>% 
+  align(j=1,align="left", part="all") %>% 
+  align(j=c(2:4),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit() %>% 
+  border_outer()%>% 
+  border_inner()
+
+```
+
+
+<br>
+
+```{r siteloop, echo=FALSE, message=FALSE,results = 'asis'}
+#create dataset for table data
+siteloop<-repdata %>% select(SITE_NAME, NPS_UNIT, LATITUDE) %>%
+   group_by(SITE_NAME,NPS_UNIT)%>%
+  #average out different lat/long from different site visits
+  summarize(LATITUDE = mean(LATITUDE))%>% 
+  arrange(LATITUDE, by_group=FALSE)
+
+for (i in 1:length(siteloop$SITE_NAME)) {
+            cat(paste("### ", siteloop$SITE_NAME[i], sep=""))
+            cat("  \n")
+            cat(paste(siteloop$SITE_NAME[i]," is located in ", siteloop$NPS_UNIT[i]," **[insert site text here. check appendix A]**",sep="")) 
+              cat("  \n") 
+  cat("  \n") 
+    
+}
+```
+:::{custom-style="sr Normal"}
+
+## Processing Night Sky Images
+For each data set, we process the images to generate a panoramic view of the night sky with the resolution of 0.05 degrees per pixel (Duriscoe et al., 2007). The image processing procedures include basic noise (bias, dark, and flat-field) removal, linearity response correction, and absolute brightness calibration. We use the standard stars captured in the images as the position and brightness calibration sources. The images in a set are then mosaicked together, showing the panoramic view of the sky from the zenith to seven degrees below the true horizon. Next, we build a model to separate out the natural light (Duriscoe, 2013). The observed panoramic images contain light from both natural and anthropogenic sources. We build a natural sky model to account for light from stars, planets, airglow, zodiacal light, and the Milky Way. We subtract out the modeled natural brightness to obtain panoramic images showing only the anthropogenic light. In summary, each data set yields a pair of calibrated panoramic images, one showing the observed sky and the other showing the light only from anthropogenic sources.
+
+## Calculating Skyglow Impact from Nearby Cities
+To expedite interpreting the all-sky images, we use Walker’s Law to estimate predicted brightness of light domes. Brightness is expressed as a percent above natural sky luminance at a 45◦ angle above the horizon. The Dark Sky Association proposed using the Walker’s Law in the following form:
+
+```{r walkers, echo=FALSE, ft.align="center",out.width = '70%'}
+include_graphics(paste(park.folder,"walkers.png",sep=""))
+```
+:::
+
+:::{custom-style="sr Alternate text"}
+Sky glow, as described by Walker's Law, is the population multiplied by the value 0.01, multiplied by the distance to the city to the -2.5 power.   
+:::
+
+:::{custom-style="sr Normal"}
+where 
+
+I = Walker’s value indicating the skyglow level above the natural background
+
+P = human population size taken from `r (censusyear)` US Census Data
+
+d = distance (km) to the population center. 
+
+At each observing location, we calculate the azimuth from the study site to the center based on the city centroid. The light dome brightness predicted by Walker’s Law might not perfectly match what is captured in the images. There is a known trend that a closer city tends to contribute more skyglow than the value calculated using Equation 1. Accurately predicting the light dome brightness is challenging. Intrinsically, the characteristics of light domes depend on factors such as the illumination level per capita, the use of shielding, the distribution of lighting fixtures, and the spectral composition of light. Extrinsically, terrain shielding, atmospheric conditions, and variable natural light can also affect the appearance of light domes. There are more refined models (such as Duriscoe et al. 2018) for better predicting skyglow but here we choose to use Walker’s Law for its simplicity.
+
+## Collecting Satellite Images of Earth at Night
+Satellite based data were collected from the Suomi National Polar-orbiting Partnership (NPP, Lee et al. 2010), a weather satellite launched in 2011. This satellite mission is a collaborative effort between National Oceanic andAtmospheric Administration (NOAA) and National Aeronautics and Space Administration. The on-board Visible Infrared Imaging Radiometer Suite (VIIRS) provides low-light measurements of upward radiance through the Day/Night Band (DNB) sensor (Lee et al., 2006). The spectral sensitivity of the VIIRS DNB ranges from 0.5 to 0.9 µm (Hillger et al., 2013), corresponding to light in green to near infrared. The DNB has a swath width of 3000 km and a pixel resolution of 742 m. The satellite has an orbital period of ∼100 minutes, which allows for nightly global DNB imagery. The nightly observations are collected around 1:00 am local time.
+
+## Estimating Skyglow Using Satellite Data
+Calibrated and processed images were obtained through the public archive on the Colorado School of Mines website (VIIRS - Payne Institute for Public Policy (mines.edu)). The VIIRS DNB sensor has on-orbit radiometric calibration and reports the radiance in units of W·cm^−2^·sr^−1^ (Lee et al., 2014). These calibrated images are still subject to light from undesired sources and weather events. Baugh et al. (2013) generated composite images by combining only high quality nighttime observations that were free of clouds, stray light, lunar illuminance, noisy edge of scan data, and missing data. We downloaded the annual composites generated from images taken in `r (viirsyear)` for the following analysis.
+
+We use satellite imagery to estimate sky quality through a simple predictive model (Duriscoe
+et al., 2018). The 2016 annual composite from VIIRS DNB serves as a map of upward nighttime
+lights for our model input. The simplified model of all-sky artificial skyglow (SALR) uses geographic analysis tools to predict the average artificial luminance over the entire night sky. Specifically, this model is based upon a relation between skyglow brightness and the distance from the
+observer to the source of upward radiance. To display the result, we use ArcGIS to generate the
+thematic map of a region showing the modeled artificial sky brightness. This map is presented in
+the Results chapter.
+
+# Results
+The ground-based observations yield the calibrated panoramic images of the night sky. Figure 3 shows an example of the image product associated with each data set. In Appendix A: Observation Notes and Panoramic Images, we provide a complete gallery of the reference images for each night. We use magnitude per square arcsecond (mag/arcsec^2^) for measuring the sky surface brightness. Magnitude (mag or mags) is a standard unit for measuring the brightness of astronomical objects, and it is in inverted logarithmic scale. A sky surface brightness of 22 mag/arcsec^2^ would be considered pristine, and a sky surface brightness of < 20 mag/arcsec^2^ would be considered greatly deviated from the natural condition. The warmer colors in these images represent brighter skies. Figure 3 shows the observed night sky, which contains light from both natural and artificial sources. Purple and dark blue colors indicate an unpolluted sky, and the Milky Way under the natural condition appears green in this color scheme. Figure 4 shows only the light from artificial sources. Light domes along the horizon from the nearby area are more apparent in this bottom image.
+
+In the image, the largest and brightest light dome, or cluster of light domes, is from **[Enter city or cities]**. The light dome from **[enter more observations beyond this point]**. 
+
+In Table 3, we listed the nearby cities from the `r (soi)` site during the data set collected on `r (soidate)` ranked according to their brightness predicted by Walker’s Law. As noted in the Methods chapter, because Walker’s Law is a simple model, the order of the predicted skyglow might not perfectly match the order of the imaged light dome brightness.
+:::
+
+:::{custom-style="sr Table caption"}
+Table 3: Nearby cities and their predicted skyglow impact at the `r (soi)` site.
+:::
+
+
+```{r table3, echo=FALSE, ft.align="center", out.width = '100%'}
+
+#change column names for report
+colnames(lightsource)<- c("Place","Population\n in 2020","Distance \n (km)", "Azimuth \n (degree)", "Walker's Value \n (% above natural)")
+#format table for word report
+flextable(lightsource) %>% 
+  align(j=c(1),align="left", part="all") %>% 
+  align(j=c(2:5),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit()%>% 
+  border_outer()%>% 
+  border_inner()
+
+
+```
+
+
+<br>
+
+
+```{r fig3, echo=FALSE, out.width = '100%'}
+
+fig3<-repdata %>% select(DNIGHT,SITE_NAME,FULL_LINK) %>% 
+  filter(DNIGHT==soidset)
+fullpath<-fig3$FULL_LINK
+include_graphics(fullpath)
+
+```
+
+:::{custom-style="sr Figure caption"}
+Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The observed sky shows light from all sources, both natural and artificial. 
+:::
+
+:::{custom-style="sr Alternate text"}
+Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The top of the image includes a scale depicting sky brightness, which is measured in magnitude per square arcsecond (mag/arcsec²). Magnitude (mag) is a common unit for measuring the brightness of astronomical objects, and it is an inverted logarithmic scale. Lower values are brighter. A difference of 5 magnitudes corresponds to a 100x difference in brightness. The images are shown in false color, with warmer colors representing brighter skies. The upper right-hand corner displays the national park unit, site name, and date and time. The night sky image is domed in shape and expands within the frame of the panoramic image. There are grid lines that are spaced 30$^\circ$ apart and they depict the azimuth outward from the camera (0-360 $^\circ$). The observed sky is showing light from all sources, both natural and artificial. The red and yellow colors indicate sky glow from nearby cities, including **[NOTE: Include observations of one or more sources from the following list: ]**
+```{r clist4,echo=FALSE, message=FALSE,results = 'asis'}
+for (i in 1:length(lightsource$Place)) {
+            cat(paste(lightsource$Place[i],", ", sep=""))
+             
+ 
+}
+```
+. **~UPDATE Observation text: The image features mostly purple and dark blue colors, which indicate more natural night sky. The Milky Way is centered in the image and appears green and yellow in this color scheme. Some of the yellow-green indicate sky brightness from stars.** 
+:::
+
+<br>
+
+```{r fig4, echo=FALSE, ft.align="center",out.width = '100%'}
+
+fig4<-repdata %>% select(DNIGHT,SITE_NAME,ART_LINK) %>% 
+  filter(DNIGHT==soidset)
+artpath<-fig4$ART_LINK
+include_graphics(artpath)
+
+```
+
+:::{custom-style="sr Figure caption"}
+Figure 4. Panoramic image of artificial skyglow at the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes.  
+:::
+
+:::{custom-style="sr Alternate text"}
+Figure 4. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The top of the image includes a scale depicting sky brightness, which is measured in magnitude per square arcsecond (mag/arcsec²). Magnitude (mag) is a common unit for measuring the brightness of astronomical objects, and it is an inverted logarithmic scale. Lower values are brighter. A difference of 5 magnitudes corresponds to a 100x difference in brightness. The images are shown in false color, with warmer colors representing brighter skies. The upper right-hand corner displays the national park unit, site name, and date and time. The night sky image is domed in shape and expands within the frame of the panoramic image. There are grid lines that are spaced 30^∘ apart and they depict the azimuth outward from the camera (0-360 $^\circ$). This image shows only the skyglow from artificial sources, by subtracting out all colors from natural sources. All natural light sources appear dark, which is the **~update text: predominant color in the image**. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes from **[NOTE: Include observations of one or more sources from the following list: ]**
+```{r clist5,echo=FALSE, message=FALSE,results = 'asis'}
+for (i in 1:length(lightsource$Place)) {
+            cat(paste(lightsource$Place[i],", ", sep=""))
+             
+ 
+}
+```
+.  
+:::
+
+<br>
+
+:::{custom-style="sr Normal"}
+
+# Sky Quality Indicators
+We summarize the sky quality measurements in Table 4 and Table 5. Based on the observed panoramic images, we report five indicators (Duriscoe, 2016) that focus on different aspects of sky brightness. These are horizontal illuminance, maximum vertical illuminance, zenith brightness, % of stars visible, and all-sky light pollution ratio (ALR). If multiple data sets were taken at night, we would report the measurements from the set taken under the best observing conditions and free of processing issues. The listed local date and time mark the midpoint of image acquisition. We provide bright urban sky measurements at Rock Creek Park in Washington, DC for comparison. The median natural sky (Duriscoe, 2016) is the natural reference condition against which we can compare all measured values. We complement our CCD camera observations a with visual assessment of Bortle Class and naked eye limiting magnitude (NELM) and take readings with a Unihedron Sky Quality Meter (SQM) whenever possible. A description for each of these metrics is provided below. 
+:::
+
+
+
+:::{custom-style="sr Table caption"}
+Table 4: `r (park)` sky brightness metrics derived from the observed images. 
+:::
+
+:::{custom-style="sr Table cell"}
+
+```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
+
+library(forstringr)
+#create dataset for table4 data
+tab4<-repdata %>% select(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS) %>% 
+  arrange(MID_DATE_LMT)%>%
+  mutate_if(is.numeric, round, 2) %>%
+  mutate(VISSTARS_RATIO=VISSTARS_RATIO*100)
+
+#%>%  #commenting out due to moving away from lost stars variable
+                        #mutate(loststars=(1-VISSTARS_RATIO)*100)%>%
+                        #relocate(loststars, .after=VISSTARS_RATIO) %>%
+                        #select(-VISSTARS_RATIO)
+
+#convert to better date format
+tab4$Date<-as.character(as.Date(tab4$MID_DATE_LMT))
+
+#need to convert decimal time to hh:mm
+tab4$MID_TIME_LMT<-as.character(tab4$MID_TIME_LMT)
+#take first part of number and separate out the hours
+tab4$Hr<-as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = TRUE, pattern = "."))
+
+#take decimal and convert to minutes
+tab4$dec_min<-round((as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = FALSE, pattern = "."))*.01)*60,digits=0)
+#Add zero before single digits
+tab4$dec_min<-ifelse(nchar(tab4$dec_min)==1,paste("0",tab4$dec_min,sep=""),tab4$dec_min)
+#bring both hh and mm together
+tab4$hhmm<-paste(tab4$Hr,":",tab4$dec_min,sep = "")
+
+
+#select data fields for table 4
+tab4<-tab4 %>% select(Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS)  
+
+#change column names for published table
+colnames(tab4)<- c("Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Brightness \n (mag/arcsec)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+
+#create dataset for reference values
+refdata<- data.frame(date=c('Urban Sky', 'Natural Sky'),Time=c('' , ''), hi=c(39.56,0.80), mvi=c(29.04, 0.40), zb=c(18.00, 22.00), ls=c(8,100), alr=c(64.43,0.00) )
+#refdata$zb<-(round(refdata$zb, digits=2))
+
+#change column names of reference data set to match tab4 dataset
+colnames(refdata)<- c("Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Brightness \n (mag/arcsec)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+
+#combind data table with reference table
+tab4<-rbind(tab4,refdata)
+
+#create table formatted for report
+ft4<-flextable(tab4) %>% 
+  align(j=1,align="left", part="all") %>% 
+  align(j=c(2:7),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit() %>% 
+  border_outer()%>% 
+  border_inner()
+
+#find row number for urban sky for relative placement of superscript
+urbannum<-which(tab4[1] == 'Urban Sky')
+#find row number for natural sky for relative placement of superscript
+natnum<-which(tab4[1] == 'Natural Sky')
+
+#Add first superscript (A)
+#ft4a<-compose(ft4, i=1, j=4,part="header", value=as_paragraph( "Max. Vertical \n Illuminance",
+    #as_sup(" A"),"\n (mlx)"))
+#Add second superscript (b)  
+ft4a<- compose(ft4, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky",as_sup(" A"))) 
+#Add third superscript (c)
+ft4b<-compose(ft4a, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
+#add superscript 2
+ft4c<-compose(ft4b, i=1, j=5,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
+
+
+#print table
+ft4c
+
+
+```
+:::
+
+:::{custom-style="sr Table note"}
+
+^A^ Rock Creek Park in Washington, DC was used as the urban sky reference.
+
+^B^ The median natural sky is the natural reference condition.
+
+<br>
+
+
+:::
+
+
+:::{custom-style="sr Normal"}
+
+Illuminance is the amount of visible light incident on a unit surface area. It is more sensitive to light striking closer to perpendicular to the surface. Specifically, the impact from a light source is weighted by the cosine of its angle of incidence. For example, the weighting factors for sources incident perpendicular to the surface, 60 degrees away, and 90 degrees away (parallel to the surface) are 1, 0.5, and 0, respectively.
+
+The horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From the `r (daynum)` observation nights in `r (pcode)`, **~[NOTE: summarize from Table 4 here:] the average horizontal illuminance is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent of the natural illumination on the plane.**
+
+
+:::
+
+:::{custom-style="sr Table caption"}
+Table 5: `r (park)` visual and SQM measurements. 
+:::
+
+:::{custom-style="sr Table cell"}
+
+```{r table5, echo=FALSE, ft.align="center", out.width = '100%'}
+
+#create dataset for table5 data
+tab5<-repdata %>% select(MID_DATE_LMT, BORTLE, ZLM, SQM) %>% #Need to verify correct measures
+  arrange(MID_DATE_LMT)%>%
+  mutate_if(is.numeric, round, 2) 
+
+#convert to better date format
+tab5$MID_DATE_LMT<-as.character(as.Date(tab5$MID_DATE_LMT))
+
+
+#change column names for published table
+colnames(tab5)<- c("Date","Bortle\n Class","Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
+
+#create dataset for reference values
+refdatabc<- data.frame(date=c('Urban Sky', 'Natural Sky'),bc=c(8,1), lm=c(5.2, 7.0), sqm=c(18.36, 22.00))
+#refdata$zb<-(round(refdata$zb, digits=2))
+
+#change column names of reference data set to match tab4 dataset
+colnames(refdatabc)<-  c("Date","Bortle\n Class","Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
+
+#combind data table with reference table
+tab5<-rbind(tab5,refdatabc)
+
+#create table formatted for report
+ft5<-flextable(tab5) %>% 
+  align(j=1,align="left", part="all") %>% 
+  align(j=c(2:4),align="center", part="all") %>%
+  fontsize(size = 9, part = "header") %>%
+  bold(part="header") %>%
+  fontsize(size = 9, part = "body") %>%
+  padding(padding = 0, part = "all")  %>%
+  autofit() %>% 
+  border_outer()%>% 
+  border_inner()
+
+#find row number for urban sky for relative placement of superscript
+urbannum<-which(tab5[1] == 'Urban Sky')
+#find row number for natural sky for relative placement of superscript
+natnum<-which(tab5[1] == 'Natural Sky')
+
+#Add first superscript (A)
+
+ft5a<- compose(ft5, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky",as_sup(" A"))) 
+#Add third superscript (c)
+ft5b<-compose(ft5a, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
+#add superscript 2
+ft5c<-compose(ft5b, i=1, j=4,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
+#print table
+ft5c
+
+```
+
+:::
+
+:::{custom-style="sr Table note"}
+
+^A^ Rock Creek Park in Washington, DC was used as the urban sky reference.
+
+^B^ The median natural sky is the natural reference condition.
+
+<br>
+
+:::
+
+
+```{r resultwrangletab4, echo=FALSE, ft.align="center"}
+#(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_ART_MAGS, VISSTARS_RATIO, ALR_POS)
+maxvert<-round(max(repdata$MAXVERT_MLX),digits=2)
+maxvertref<-ifelse(maxvert< 0.40, "less than", ifelse(maxvert == 0.40, "equal to", "greater than"))
+zenskyb<-round(ave(repdata$ZENITH_LUM_MSA),digits=2)
+```
+
+
+:::{custom-style="sr Normal"}
+
+
+The vertical illuminance describes the light striking a vertical surface. The vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From the `r (daynum)` observation nights in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx in all observations. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low for providing a refuge for crepuscular and nocturnal species in the park.**
+
+The zenith sky brightness is the sky brightness overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
+
+The percent visible star metric concerns the percentage of stars that are visible after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)` of stars were still visible for most of the time, providing an **~outstanding** opportunity to observe the natural night sky from the park.
+
+All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 indicate excellent conditions, 0.3 to 2.0 indicate impaired sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 indicate the natural night sky is not readily visible. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
+
+Indicators derived from these ground-based measurements indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. These indicators are supported by visual observations and assessments at the site. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`). `r (bortdesc)`
+
+Naked eye limiting magnitude (NELM) is the magnitude of the faintest star we can see in the sky with naked eyes. As the night sky brightness increases, the limiting magnitude will degrade to a lower value. The NELM will also depend on the observer and will increase with the eye’s dark adaptation. 6.6 is considered near pristine under average conditions. 7.0 is achievable under good seeing conditions and with proper dark adaptation of the eye. 7.4 is excellent, just about the faintest attainable. A number lower than 6.3 usually indicates degraded sky quality. The limiting magnitude is also a common metric used by citizen scientists to assess the sky brightness globally. In `r (pcode)`, the `r (avenelmvar)` limiting magnitude is `r (avenelm)`, approaching `r (nelmcatdesc)`.
+
+The hand-held Sky Quality Meter (SQM) is an economic and convenient tool to take a single value of sky brightness measurement with just one click. We point SQM towards zenith when taking a reading. The SQM has a wide field of view; its full width half maximum of the angular sensitivity is ∼42◦. Although getting a reading is fast and easy, the instrument does not reliably measure the sky brightness when the sky is darker than ∼21.5 mag/arcsec^2^. Our SQM measurements in `r (pcode)` `r (avesqmvar)` to `r (avesqm)` mag/arcsec^2^, **~indicating the zenith is darker than what we can accurately measure with a SQM.**
+
+## Regional Sky Brightness Model
+Figure 5 displays park and regional predictions of skyglow based on the SALR model using the annual `r (viirsyear)` cloud-free composite of VIIRS data. The metric depicted is all-sky average sky brightness, expressed as a ratio of artificial to natural background. Skyglow can be seen from up to 300 kilometers away from large metropolitan areas. The map displays the park and the surrounding area, including cities within approximately `r (sdist)` km. This map provides a landscape view of the average sky brightness in and around the park. The scale on the left gives the ratio between the natural and artificial light where the lower the ratio, the better the night sky viewing and lower levels of visible artificial light.
+
+```{r fig5, echo=FALSE, out.width = '100%'}
+
+include_graphics(paste(park.folder,"sALR.png", sep=""))
+
+```
+
+:::{custom-style="sr Figure caption"}
+Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (park)`. The park boundary is outlined in green.   
+:::
+
+:::{custom-style="sr Alternate text"}
+Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (pcat)`. The park boundary is outlined in green. Major cities around the park, including
+```{r clist6,echo=FALSE, message=FALSE,results = 'asis'}
+for (i in 1:length(lightsource$Place)) {
+            cat(paste(lightsource$Place[i],", ", sep=""))
+             
+ 
+}
+```
+are displayed. Nearby major roads and highways are included and intersect the cities. The light pollution model displays higher values in green, yellow, orange and yellow. Decreasing ALR values are shown from light blue to purple. The nearby cities are within higher ALR values and within the warmer colors. In `r (pcode)`, most of the park is in the lowest ALR color range (`r (parkcolor)`). **~The western section of the park near to the cities are lighter purple, indicating increased light pollution.** 
+:::
+
+`r (pcode)` is **~nearly surrounded by light sources, but at distances great enough to produce minimal predicted impact**. In the largest nearby communities such as 
+```{r top3clist,echo=FALSE, message=FALSE,results = 'asis'}
+#print top 3 nearby cities
+for (i in 1:length(top3cities$NAME)) {
+            cat(paste(top3cities$NAME[i],", ", sep=""))
+             
+ 
+}
+
+```
+, **~the sky quality is dramatically different than in the park.**. `r (pcode)` is mostly in `r (parkcolor)` color (values around `r (alrmodmed)`), **~which agrees with all the measurements taken inside the park.** 
+```{r alrmodelloop, echo=FALSE, message=FALSE,results = 'asis'}
+
+for (i in 1:length(pmodlist)) {
+  alrmod<-subset(alrmodel, alrmodel$UNIT_CODE==pmodlist[i])
+            cat(paste("At ", alrmod$UNIT_CODE, ", the mean modeled ALR was ", round(alrmod$MEAN, digits=2)," (", round(alrmod$MIN,digits = 2)," - ", round(alrmod$MAX, digits=2),"). ","At this average ALR, the modeled whole-park sky quality condition is considered ", alrmod$cat,". ", sep=""))
+            }
+
+```
+**~At this light level, humans should be able to fully adapt to the dark and have an opportunity to see the Milky Way from nearly horizon to horizon, complete constellations, deep sky objects, zodiacal light, and airglow.**
+
+# Discussion
+## Variation in Natural Sources
+Variations in airglow activity can change sky brightness and complicate the assessment of sky quality. Airglow is caused by particles releasing energy in the form of light in the earth’s upper atmosphere. These particles obtain the energy from the sun and cosmic rays. The sun shows an activity cycle of eleven years, and this cycle seems to correlate with the airglow brightness (Patat, 2008). While the average airglow brightness shows long-term variation, the brightness and pattern can change in minutes. Bright airglow will wash out some night sky features, such as faint galaxies and details in the Milky Way, directly affecting the visual assessment of the night sky. In addition, the indicators derived from the observed sky brightness, including the illuminance and zenith brightness, can also be affected. To account for this natural variation, we subtract airglow in our modeling process before estimating the skyglow brightness. However, the uncertainty of the associated metrics (% of visible stars and ALR values) can still be high due to the uncertainty of airglow modeling. In general, suburban skies (Bortle Class 4 and 5) are most susceptible to the large percentage error from the airglow modeling process compared to rural and urban sites. A detailed discussion about the airglow modeling uncertainty can be found in Duriscoe (2013).
+
+Another factor that could significantly affect the skyglow measurement is the amount of aerosols in the atmosphere. Aerosols can come from natural sources (i.e., wind-borne dust, sea spray, and volcanic debris), but they can also originate from human activities (i.e., industrial emissions, fossil fuel combustion, and waste and biomass burning). From the visual observation perspective, observers will see fewer stars if the aerosol concentration is higher. From the skyglow measurement perspective, a higher aerosol level will enhance the brightness of nearby sources but diminish the brightness of distant sources. Variation in aerosol content can affect the sky brightness measurements even with no net increase in light intensity from ground-based sources.
+
+## Measurement Uncertainties
+The direct measurement uncertainties are about a few percent, and the uncertainty of the estimated skyglow varies from data set to data set. In the observed image mosaic, pixel-to-pixel random error in sky brightness measurement is ±4%. Systematic error is typically less than 2% as the instrument is calibrated on standard stars for each data set. For the estimated skyglow brightness mosaic, the uncertainty largely depends on the natural sky model due to the spatial and temporal variations in the airglow brightness as discussed earlier. Duriscoe (2013) discussed these measurement uncertainties in detail. The all-sky average measurement of skyglow, such as ALR, is typically accurate to ±5%, or 0.05 magnitudes.
+
+## Data Quality and Anomalies
+**~Add here or delete!**
+
+## Glare
+Glare is bright and uncomfortable light shining from the source directly to the observer. In general, common glare sources include outdoor lights from cities and developments, nearby luminaires, and car lights. Even at distances of several miles, glare can significantly degrade the view of the night sky and impair an observer’s night adapted vision. **~Our images show that along the north and northeast horizon at Gallo Cuesta, several drilling operation lights and gas flares created direct glare. Local glare sources affecting Chaco Culture NHP include exterior lights on administrative and public facilities, gas flaring, and temporary unshielded lighting such as drilling rigs.**
+
+## Trend Analysis Limitations
+We do not determine whether there is any long-term change of skyglow brightness in our report. Our ground-based observations are limited by the sporadic and small number of sampling points in time. In addition, because each observation was taken under slightly different atmosphere conditions, we cannot compare the measurements directly. These measurements, however, do accurately reflect the sky quality at those specific points of time. For the satellite data, there is currently a large uncertainty associated with the measurements. Ideally, the monthly VIIRS day/night band composites could offer a great tool for determining the long-term trend. However, the measured upward radiance shows a large variation from month to month. This variation is likely an artifact rather than the actual lighting level change. Before this variation is well understood, we cannot use the satellite data to identify the trend.
+
+# Conclusions
+Overall, the night sky conditions at `r (pcode)` are **~very good**. **~The measured sky brightness averaged over the whole sky is only slightly brighter than the natural conditions, allowing wildlife and park visitors to experience near natural darkness at night. From many locations within the park, visitors can find places free of direct glare that allow for dark adaptation under an almost natural sky. During clear and dark nights, visitor will have an opportunity to see the Milky Way (nearly horizon to horizon), complete constellations, deep sky objects, and fainter natural sources of light such as the zodiacal light and airglow.**
+
+In `r (pcode)`, night skies were visually classified as `r (bortcat)`, based on the visibility of astronomical objects. The NELM is is approaching `r (nelmcatdesc)`. `r (bortdesc)` The main impacts to `r (pcode)`’s night sky quality were the light domes from
+```{r clist7,echo=FALSE, message=FALSE,results = 'asis'}
+for (i in 1:length(lightsource$Place)) {
+            cat(paste(lightsource$Place[i],", ", sep=""))
+             
+ 
+}
+```
+While impacts from light domes and distant glare sources are **~moderate to low during clear nights, an increase in atmospheric aerosols can significantly alter sky brightness by amplifying the impacts of existing artificial light and further degrading the night sky quality.**
+
+Practicing sustainable outdoor lighting within the park and with the neighboring communities is a key to reducing light pollution. Sustainable outdoor lighting observes the following principles: light only if needed, light only when needed, light only where it is needed, use warm-white or amber light, use the minimum amount of light needed, and use energy-efficient lights. Locally, appropriate lighting in the park can provide visitors the optimal observing environment. Partnering with gateway communities can further reduce light pollution, both locally and regionally. Reducing light pollution improves the quality of night sky viewing. Ultimately, improving night sky quality can result in increased visitor spending in gateway communities. Preserving the natural night sky really requires a joint effort and can be mutually beneficial to all parties.
+:::
+\newpage
+
+# Bibliography
+:::{custom-style="sr Literature cited"}
+Baugh, K., Hsu, F.-C., Elvidge, C. D., & Zhizhin, M. 2013. Nighttime lights compositing using the VIIRS day-night band: Preliminary results. Proceedings of the Asia-Pacific Advanced Network. 35, 70
+
+Bortle, J. E. 2001. Introducing the Bortle Dark-Sky Scale. Sky and Telescope. 101
+
+Duriscoe, D. M. 2013. Measuring Anthropogenic Sky Glow Using a Natural Sky Brightness Model. Publications of the Astronomical Society of the Pacific. 125, 1370
+
+—. 2016. Photometric indicators of visual night sky quality derived from all-sky brightness maps. Journal of Quantitative Spectroscopy and Radiative Transfer. 181, 33
+
+Duriscoe, D. M., Anderson, S. J., Luginbuhl, C. B., & Baugh, K. E. 2018. A simplified model of all-sky artificial sky glow derived from VIIRS Day/Night band data. Journal of Quantitative Spectroscopy and Radiative Transfer. 214, 133
+
+Duriscoe, D. M., Luginbuhl, C. B., & Moore, C. A. 2007. Measuring Night-Sky Brightness with a Wide-Field CCD Camera. Publications of the Astronomical Society of the Pacific. 119, 192
+
+Falchi, F., Cinzano, P., Duriscoe, D., et al. 2016. The new world atlas of artificial night sky brightness. Science Advances. 2, e1600377
+
+Hillger, D., Kopp, T., Lee, T., et al. 2013. First-Light Imagery from Suomi NPP VIIRS. Bulletin of the American Meteorological Society. 94, 1019
+
+Kyba, C. C. M., Kuester, T., Sánchez de Miguel, A., et al. 2017. Artificially lit surface of Earth at night increasing in radiance and extent. Science Advances. 3. doi:10.1126/sciadv.1701528
+
+Lee, S., Chiang, K., Xiong, X., Sun, C., & Anderson, S. 2014. The S-NPP VIIRS Day-Night Band on-orbit calibration/characterization and current state of SDR products. Remote Sensing. 6, 12427
+
+Lee, T. E., Miller, S. D., Turk, F. J., et al. 2006. The NPOESS VIIRS Day/Night Visible Sensor. Bulletin of the American Meteorological Society. 87, 191
+
+Lee, T. F., Nelson, C. S., Dills, P., et al. 2010. NPOESS: Next-Generation Operational Global Earth Observations. Bulletin of the American Meteorological Society. 91, 727
+
+Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Paranal. Astronomy and Astrophysics. 481, 575
+:::
+\newpage
+# Appendix A: Observation Notes and Panoramic Images
+```{r appenda, echo=FALSE,results = 'asis'}
+#create dataset for table data and fromat on survey date
+appenda<-repdata %>% select(DNIGHT,MID_DATE_LMT, SITE_NAME, NARRATIVE,FULL_LINK,ART_LINK) %>% 
+  arrange(MID_DATE_LMT) %>%
+  mutate(Date = as.Date(MID_DATE_LMT, format = "%d/%m/%Y"))
+appenda$NARRATIVE<-gsub("NARRATIVE: ","",appenda$NARRATIVE)
+
+
+for (i in 1:length(appenda$DNIGHT)) {
+            cat(paste("On ", appenda$Date[i], ", at ",appenda$SITE_NAME[i],":", appenda$NARRATIVE[i], sep=""))
+            cat("  \n")
+            cat(paste("Full resolution mosaic: ",appenda$FULL_LINK[i],sep="")) 
+            cat("  \n")  
+            cat(paste("Estimated artificial sky glow: ",appenda$ART_LINK[i],sep=""))
+  cat("  \n") 
+  cat("  \n") 
+    
+}
+
+```
+
+
+```{r remove, include=FALSE}
+rm(list=ls())
+
+```
+
+
