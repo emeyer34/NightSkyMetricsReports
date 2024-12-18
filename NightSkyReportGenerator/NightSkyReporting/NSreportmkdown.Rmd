@@ -14,7 +14,7 @@ params:
     plottitle:
   viirsyear:
     label: "Enter the year of the last viirs satellite/ALR model"
-    value: 2022
+    value: 2023
     input: slider
     min: 2015
     max: 2035
