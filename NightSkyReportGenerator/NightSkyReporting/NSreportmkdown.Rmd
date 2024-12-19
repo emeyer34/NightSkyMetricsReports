@@ -38,15 +38,15 @@ params:
     sep: ""
   soi:
     label: "Enter the site of interest to highlight in the report (make sure it is how it is spelled out in data exploration report:"
-    value: ex."Sentinel Dome"
+    value: ex. Norden Bridge
     input: text
   soidset:
     label: "Enter the soi dataset from the data exploration report:"
-    value: ex."YOSE050907"
+    value: ex. NIOB240831
     input: text
   soidate:
     label: "Enter the enter soi dataset date:"
-    value: ex."Month DD, YYYY"
+    value: ex.Month DD, YYYY
     input: text
        
 ---    
@@ -64,7 +64,7 @@ packages = c("EnvStats", "reshape2",
              "svDialogs","tcltk2", "tidyverse","vtable",
              "data.table","ggpubr","knitr","readr", "sjmisc","janitor","dplyr",
              "DT","tmap","scales","leaflet", "shiny", "rsconnect", "english",
-             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr")
+             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr","geojsonsf","sf")
 
 ## Now load or install & load all
 package.check <- lapply(
@@ -144,8 +144,18 @@ User Note (optional): see the First/Title page section of the online user guide 
 pcat<-paste(park," (",pcode,")",sep="")
 ###Start gathering data summaries for NPMaps Query data
 ### most of the metrics reported are here
-#import full dataset
-data<-read_excel(".//Reference//NPMapsQuery.xlsx")
+#import full dataset from NPmaps
+#import full dataset from NPmaps
+data<-geojsonsf::geojson_sf("https://www.nps.gov/subjects/nightskies/nsdmap.geojson")
+
+
+data$longcoord<-str_sub(data$geometry, 3,-2)
+data$LATITUDE <- as.numeric(sub(".*, ", "", data$longcoord))
+data$LONGITUDE <- as.numeric(sub(", .*", "", data$longcoord))
+
+data<-as.data.frame(data)
+#data<-geojsonsf::geojson_sf("https://www.nps.gov/subjects/nightskies/nsdmap.geojson")
+#data<-as.data.frame(data)
 #create park code field for filtering
 data$parkcode<-substr(data$DNIGHT, 1, 4)
 
@@ -463,7 +473,7 @@ Table 1: Ground-based data collection events at `r (park)`. ‘Sets’ refers to
 #create dataset for table data and fromat on survey date
 tab1<-repdata %>% select(MID_DATE_LMT, SITE_NAME, CAMERA, DSET, OBSERVERS) %>% 
   arrange(MID_DATE_LMT) %>%
-  mutate(Date1 = as.Date(MID_DATE_LMT, format = "%d/%m/%Y"))%>% 
+  mutate(Date1 = MID_DATE_LMT)%>% 
   select(Date1, SITE_NAME, CAMERA, DSET, OBSERVERS)
 #remove characters
 tab1$OBSERVERS <- sub("\r\n", ", ", tab1$OBSERVERS)
@@ -691,7 +701,8 @@ Table 4: `r (park)` sky brightness metrics derived from the observed images.
 
 ```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
 
-library(forstringr)
+
+repdata$VISSTARS_RATIO=as.numeric(repdata$VISSTARS_RATIO)
 #create dataset for table4 data
 tab4<-repdata %>% select(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS) %>% 
   arrange(MID_DATE_LMT)%>%
@@ -704,7 +715,7 @@ tab4<-repdata %>% select(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZEN
                         #select(-VISSTARS_RATIO)
 
 #convert to better date format
-tab4$Date<-as.character(as.Date(tab4$MID_DATE_LMT))
+tab4$Date<-tab4$MID_DATE_LMT
 
 #need to convert decimal time to hh:mm
 tab4$MID_TIME_LMT<-as.character(tab4$MID_TIME_LMT)
@@ -805,7 +816,7 @@ tab5<-repdata %>% select(MID_DATE_LMT, BORTLE, ZLM, SQM) %>% #Need to verify cor
   mutate_if(is.numeric, round, 2) 
 
 #convert to better date format
-tab5$MID_DATE_LMT<-as.character(as.Date(tab5$MID_DATE_LMT))
+tab5$MID_DATE_LMT<-tab5$MID_DATE_LMT
 
 
 #change column names for published table
@@ -867,7 +878,7 @@ ft5c
 #(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_ART_MAGS, VISSTARS_RATIO, ALR_POS)
 maxvert<-round(max(repdata$MAXVERT_MLX),digits=2)
 maxvertref<-ifelse(maxvert< 0.40, "less than", ifelse(maxvert == 0.40, "equal to", "greater than"))
-zenskyb<-round(ave(repdata$ZENITH_LUM_MSA),digits=2)
+zenskyb<-round(ave(as.numeric(repdata$ZENITH_LUM_MSA)),digits=2)
 ```
 
 

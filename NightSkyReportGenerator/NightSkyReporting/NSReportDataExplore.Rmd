@@ -25,7 +25,7 @@ packages = c("EnvStats", "reshape2",
              "svDialogs","tcltk2", "tidyverse","vtable",
              "data.table","ggpubr","knitr","readr", "sjmisc","janitor","dplyr",
              "DT","tmap","scales","leaflet", "shiny", "rsconnect", "english",
-             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr")
+             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr", "geojsonsf","sf")
 
 ## Now load or install & load all
 package.check <- lapply(
@@ -46,7 +46,8 @@ package.check <- lapply(
 Utilize the following table and linked information to inform choosing a site of interest for the data report automation. This should be run first for the reporting park. The ensuing html report can help inform setting parameters for when running the "NSreportmkdown.Rmd". Simply copy and paste the data set id and site name into the parameters. The site you choose can be one of high value night sky resource or one that has been impacted by skyglow. 
 
 ```{r dataimport, message=FALSE, include=FALSE}
-data<-read_excel(".//Reference//NPMapsQuery.xlsx")
+data<-geojsonsf::geojson_sf("https://www.nps.gov/subjects/nightskies/nsdmap.geojson")
+data<-as.data.frame(data)
 #create park code field for filtering
 data$parkcode<-substr(data$DNIGHT, 1, 4)
 #pcode<-"PORE"
@@ -74,7 +75,7 @@ Table 1: `r (pcode)` sky brightness metrics derived from the observed images.
 
 ```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
 
-library(forstringr)
+repdata$VISSTARS_RATIO=as.numeric(repdata$VISSTARS_RATIO)
 #create dataset for table4 data
 tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS) %>% 
   arrange(MID_DATE_LMT)%>%
@@ -87,7 +88,7 @@ tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX,
                         #select(-VISSTARS_RATIO)
 
 #convert to better date format
-tab4$Date<-as.character(as.Date(tab4$MID_DATE_LMT))
+tab4$Date<-tab4$MID_DATE_LMT
 
 #need to convert decimal time to hh:mm
 tab4$MID_TIME_LMT<-as.character(tab4$MID_TIME_LMT)
@@ -174,7 +175,7 @@ tab5<-repdata %>% select(SITE_NAME,DNIGHT, MID_DATE_LMT, BORTLE, ZLM, SQM) %>% #
   mutate_if(is.numeric, round, 2) 
 
 #convert to better date format
-tab5$MID_DATE_LMT<-as.character(as.Date(tab5$MID_DATE_LMT))
+tab5$MID_DATE_LMT<-tab5$MID_DATE_LMT
 
 
 #change column names for published table
@@ -233,7 +234,7 @@ ft5c
 #create dataset for table data and fromat on survey date
 appenda<-repdata %>% select(DNIGHT,MID_DATE_LMT, SITE_NAME, NARRATIVE,Report_Link,FULL_LINK,ART_LINK) %>% 
   arrange(MID_DATE_LMT) %>%
-  mutate(Date = as.Date(MID_DATE_LMT, format = "%d/%m/%Y"))
+  mutate(Date = MID_DATE_LMT)
 
 
 

@@ -10,4 +10,12 @@ ImportLog/
 Index/
 *gdbtable
 NightSkyReportProcess_index/
+*.RData
+*.Rhistory
+SEKI/
+SEQU/
+KICA/
+*.docx
+UpdateStudySites.R
 
+.Rproj.user
