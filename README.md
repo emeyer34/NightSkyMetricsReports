@@ -1,63 +1,64 @@
 # NPS Night Sky Metrics Report Generator
-## Example
-This README is under construction
+## Step 1. Installation Guide
+1.	Install RStudio (Software Center)
+2.	Install R Statistical Software (Software Center)
+3.	Install ArcGIS Pro (Software Center)
+4.	Install Git (Software Center)
+## Step 1a: Preparing Your Workstation (Complete Only Once)
+1.	Open a terminal (Git Bash) and navigate to the desired project directory:
+cd [path to the place where you would like to save the project] 
+2.	Clone the GitHub repository:
+git clone https://github.com/emeyer34/NightSkyMetricsReports.git
+3.	Fetch any updates:
+git fetch
+4.	Pull the latest changes:
+git pull origin main
+5.	In Windows Explorer, navigate to the cloned project at:
+NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting
+a.	Open NightSkyReporting.Rproj
+b.	In the R project, open NSreportmkdown.Rmd
+c.	Run the code chunk labeled “r packages” on line 54 by pressing the play button on the upper right of the code chunk. This process may take some time if the required packages have not been previously downloaded. 
+6.	Download the geodatabase from the NSNSD "Software and Scripts" folder on SharePoint. This folder will be updated with the latest sALR model, and users will be notified when a new geodatabase is available: 
+a.	sALR Database
+b.	Extract contents of the gdb into the project folder: NightSkyMetricsReports\NightSkyReportGenerator\ArcPro\NightSkyReportProcess
 
-This is a four step process to create night sky metrics reports that are formatted into the NPS science report series word template. Examples of the final product can be found by NPS employees here. https://irma.nps.gov/DataStore/Collection/Profile/9562
-## Order of Operations
+## Step 1b: Pull Updates to Workstation (Repeat After Step 1a)
+1.	Open a terminal and navigate to the project directory:
+cd [path to the place where you would like to save the project] 
+2.	Pull the latest updates:
+git pull
+3.	If "git pull" results in errors due to local modifications, you can overwrite your changes with:
+git fetch --all 
+git reset --hard origin/master 
 
-### 1. Spatial analysis and mapping
-   a.)Make sure you have the latest gdb. This will have the most recent ALR model. NPS employees can find it in the NSNSD Sharepoint Software and Scripts folder, named NightSkyReportProcess.gdb.zip. Extract contents into the project folder: NightSkyMetricsReports\NightSkyReportGenerator\ArcPro\NightSkyReportProcess
-  
-  b.) Open NightSkyReportProcess.aprx
-  
-  c.) Select the Processing Map
-  
-  d.) In NightSkyScripts.ipynb, change the file path stored as "repgen" to your local project folder. Change the park unit code to the park you are reporting on. In Cells, select Run All
-  
-  e.) Select the StudySites map in the ParkOverview Layout. Remove any old park study sites or boundary layers.
-  
-  f.) In LayoutScripts_ParkOverview, Cells, select Run All
-  
-  g.) Return to the ParkOverview Layout and fine tune the map by modifying labels, zoom, if needed. Double click on the Map title and update the dynamic text from the Park Unit boundary file to display the Unit_Name. When satisfied, export the layout by navigating to the park unit code that was created in the following location: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Figures. In the folder of the park unit you are working on, replace the file named: park_geographic_location.PNG
-  
-  h.) Select the ALR_PARK map in the sALR layout. 
-  
-  i.) In LayoutScripts_sALR, Cells, select Run All
-  
-  j.) Return to the sALR layout and fine tune the map to include nearby areas that could be influencing the ALR results. Double click on the Map title and update the dynamic text from the Park Unit boundary file to display the Unit_Name. When satisfied, export the layout by navigating to the park unit code that was created in the following location: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Figures. In the folder of the park unit you are working on, replace the file named: sALR.PNG
+## Step 2. Spatial analysis and mapping
+1.	Ensure you have the latest geodatabase, which will contain the most recent ALR model. NPS employees can find it in the NSNSD SharePoint Software and Scripts folder, named NightSkyReportProcess.gdb.zip. Extract the contents into: NightSkyMetricsReports\NightSkyReportGenerator\ArcPro\NightSkyReportProcess
+2.	Open NightSkyReportProcess.aprx.
+3.	Select the Processing Map
+4.	In NightSkyScripts.ipynb, update the "repgen" file path to your local project folder and change the park unit code to the park you are reporting on. Then, select Run All in the Cells menu.
+5.	In the ParkOverview Layout, select the StudySites map. Remove any outdated park study sites or boundary layers.
+6.	In LayoutScripts_ParkOverview, select Run All in the Cells menu.
+7.	Return to the ParkOverview Layout and refine the map by adjusting labels and zoom levels as needed. Double-click the map title to update the dynamic text to display the Unit_Name from the Park Unit boundary file. When satisfied, export the layout and save it in the park unit folder at:
+NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Figures. In the folder of Replace the existing file named park_geographic_location.PNG.
+8.	Select the ALR_PARK map in the sALR layout. In LayoutScripts_sALR, select Run All in the Cells menu.
+9.	Return to the sALR layout and adjust the map to include nearby areas that may influence ALR results. Double-click the map title to update the dynamic text to display the Unit_Name. When satisfied, export the layout and save it in the appropriate park unit folder at: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Figures. In the folder of Replace the existing file named sALR.PNG.
 
-### 2. Data Exploration
-  a.) Navigate to the following location: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting. Open NightSkyReporting.Rproj
-  
-  b.) In the project, open RMarkdown document, NSReportDataExplore.Rmd; In the Knit dropdown button, choose "Knit with Parameters"
-  
-  c.) A data form will appear and type in the park unit code and select Knit
-  
-  d.) This will create an HTML report that will be saved in the same location as the .Rproj file. Use this report to explore the focal park unit night sky data. Choose from this snapshot report the study site that you will highlight as the site of interest for the larger published report. It is advised to keep this report open for Step 3.
+## Step 3. Data Exploration
+1.	Navigate to the following location: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting. Open NightSkyReporting.Rproj
+2.	Open the RMarkdown document, NSReportDataExplore.Rmd. In the Knit dropdown, select "Knit with Parameters."
+3.	A data form will appear; enter the park unit code and select Knit.
+4.	This will generate an HTML report saved in the same location as the .Rproj file. Use this report to explore the night sky data for the focal park unit. Choose a study site to highlight in the larger published report. It is advised to keep this report open for Step 4.
 
-### 3. Report Generation
-  a.) In the same R project as step 2b, open the NSreportmkdown.Rmd.
-  
-  b.) Once open, in the Knit dropdown button, choose "Knit with Parameters"
-  
-  c.) A data form will appear. Enter the park name and unit code. Accept defaults for the ALR model and census data used (unless otherwise told by project manager). Use the html report from Step 2 to fill out the appropriate information for the Site of Interest. 
-  
-  d.) Select Knit. After ~5-20 seconds, a word document will appear with a fully formated report. This document will also be saved as NSreportmkdown.docx in the same location as the .Rproj
+## Step 4. Report Generation
+1.	In the same R project as Step 3, open NSreportmkdown.Rmd.
+2.	In the Knit dropdown, select "Knit with Parameters."
+3.	A data form will appear. Enter the park name and unit code. Accept the default values for the ALR model and census data unless instructed otherwise by the project manager. Use the HTML report from Step 3 to fill out the information for the Site of Interest.
+4.	Click Knit. After approximately 5–20 seconds, a Word document will be generated with a fully formatted report. This document will also be saved as NSreportmkdown.docx in the same location as the .Rproj.
 
-### 4. Finalize Report
-  a.) Move both reports from steps 2 & 3 to the park folder in the following location: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Parks
-  
-  b.) It is advised to rename to associate each document with the park.
-  
-  c.) In the word document, update all text that is bold and noted by "~".
-  
-  c.) Once finalized and reviewed, it is ready for publication. 
+## Step 5. Finalize Report
+1.	Move both reports from Steps 3 and 4 to the park folder at: NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Parks
+2.	It is recommended to rename the documents to associate them with the specific park.
+3.	In the Word document, update all the text indicated in bold and noted with "~".
+4.	Once the documents have been finalized and reviewed, they are ready for publication.
 
-  
-
-## License
-
-## Publications
-
- https://irma.nps.gov/DataStore/Collection/Profile/9562
 
