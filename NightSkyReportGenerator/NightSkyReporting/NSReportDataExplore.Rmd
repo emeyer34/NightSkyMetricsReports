@@ -6,7 +6,7 @@ output: html_document
 params:
   alpha_code:
     label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
-    value: UNIT
+    value: PORE
     input: text
    
  
@@ -25,7 +25,7 @@ packages = c("EnvStats", "reshape2",
              "svDialogs","tcltk2", "tidyverse","vtable",
              "data.table","ggpubr","knitr","readr", "sjmisc","janitor","dplyr",
              "DT","tmap","scales","leaflet", "shiny", "rsconnect", "english",
-             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr", "geojsonsf","sf")
+             "kableExtra","statip","magrittr","flextable","officedown", "officer","forstringr", "geojsonsf","sf","skimr")
 
 ## Now load or install & load all
 package.check <- lapply(
@@ -107,14 +107,14 @@ tab4$hhmm<-paste(tab4$Hr,":",tab4$dec_min,sep = "")
 tab4<-tab4 %>% select(SITE_NAME,DNIGHT,Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS)  
 
 #change column names for published table
-colnames(tab4)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Brightness \n (mag/arcsec)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+colnames(tab4)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Luminance \n (mag/arcsec2)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
 
 #create dataset for reference values
 refdata<- data.frame(SiteName=c('Urban Sky', 'Natural Sky'),dset=c('' , ''),Date=c('' , ''),Time=c('' , ''), hi=c(39.56,0.80), mvi=c(29.04, 0.40), zb=c(18.00, 22.00), ls=c(8,100), alr=c(64.43,0.00) )
 #refdata$zb<-(round(refdata$zb, digits=2))
 
 #change column names of reference data set to match tab4 dataset
-colnames(refdata)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Brightness \n (mag/arcsec)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+colnames(refdata)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Luminance \n (mag/arcsec2)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
 
 #combind data table with reference table
 tab4<-rbind(tab4,refdata)
@@ -144,7 +144,7 @@ ft4a<- compose(ft4, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky"
 #Add third superscript (c)
 ft4b<-compose(ft4a, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
 #add superscript 2
-ft4c<-compose(ft4b, i=1, j=5,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
+ft4c<-compose(ft4b, i=1, j=7,part="header", value=as_paragraph( "Zenith \n Luminance \n (mag/arcsec",as_sup("2"),")"))
 
 
 #print table
@@ -214,7 +214,7 @@ ft5a<- compose(ft5, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky"
 #Add third superscript (c)
 ft5b<-compose(ft5a, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
 #add superscript 2
-ft5c<-compose(ft5b, i=1, j=4,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
+ft5c<-compose(ft5b, i=1, j=6,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
 #print table
 ft5c
 
@@ -227,6 +227,30 @@ ft5c
 ^B^ The median natural sky is the natural reference condition.
 
 
+## Compare to entire NPS Dataset
+```{r table, echo=FALSE, message=FALSE, warning=FALSE,ft.align="center", out.width = '100%'}
+# Create a summary dataframe with selected columns and rounded numeric values
+NPS_Night_Sky_Data_ALL <- data %>%
+  select(HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS, BORTLE, ZLM, SQM) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2))) %>%  # Use across for better readability
+  mutate(across(everything(), ~ as.numeric(as.character(.))))  # Ensure all columns are numeric
+
+# Change column names for the published table
+colnames(NPS_Night_Sky_Data_ALL) <- c(
+  "Horizontal Illuminance (mlx)", 
+  "Max. Vertical Illuminance (mlx)", 
+  "Zenith Luminance (mag/arcsec)", 
+  "Stars Visible (%)", 
+  "All-sky Light Pollution Ratio", 
+  "Bortle Class", 
+  "Limiting Magnitude", 
+  "SQM (mag/arcsec²)"
+)
+
+# Generate a summary of the dataframe
+tab <- skim(NPS_Night_Sky_Data_ALL)
+tab   # Print the summary table
+```
 
 ## Data Exploration Links
 
