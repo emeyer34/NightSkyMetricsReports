@@ -176,7 +176,7 @@ avebrightvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) 
 avebright <- format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA, na.rm = TRUE)), 2), nsmall = 2)
 
 avestarvisvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) == 1, "a single measurement", "the average"))
-avestarvis <- percent(mean(as.numeric(repdata$VISSTARS_RATIO, na.rm = TRUE)))
+avestarvis <- percent(mean(as.numeric(repdata$VISSTARS_PCT, na.rm = TRUE)))
 
 # Average and extreme ALR values
 aveALR <- percent(mean(repdata$ALR_POS, na.rm = TRUE))
@@ -391,6 +391,10 @@ include_graphics(file.path(park.folder, "park_geographic_location.png"))
 Figure 1: Geographic location of the park, including the `r (sitenum)` sites from the current study.  `r (park)` is located near **~[Enter broad geographic description here]** . In general, light sources within 300 km could be visible and have the potential to brighten the night sky.
 :::
 
+:::{custom-style="sr Image credit"}
+NPS/NIGHT SKIES PROGRAM
+::: 
+
 :::{custom-style="sr Alternate text"}
 Figure 1: Geographic location of the park. `r (park)` is located near  the. In general, light sources within 300 km could be visible and have the potential to brighten the night sky. The park boundary is outlined in dark green with the park area shaded in a lighter green. **~Enter observations near boundary**. There is also a smaller inset map that displays the location of the study area within the greater **~Enter observations of the greater map inset region**, a red square appears around the study area. 
 :::
@@ -412,9 +416,12 @@ include_graphics(file.path(park.folder, "all_skycam.png"))
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 2: A typical National Park Service Night Skies Program camera system consists of a commercial lens, a V-band filter, and a CCD camera. The camera system is mounted on a motorized mount, hooked up to external batteries, and controlled by a computer. NPS / NSNSD
+Figure 2: A typical National Park Service Night Skies Program camera system consists of a commercial lens, a V-band filter, and a CCD camera. The camera system is mounted on a motorized mount, hooked up to external batteries, and controlled by a computer.
 :::
 
+:::{custom-style="sr Image credit"}
+NPS/NIGHT SKIES PROGRAM
+::: 
 
 :::{custom-style="sr Alternate text"}
 Figure 2: A photograph of a typical National Park Service Night Skies Program camera system. The image displays the camera on a standard tripod setup. The camera consists of a commercial lens, a V-band filter, and a CCD camera. The camera system is mounted on a motorized mount, hooked up to external batteries, and controlled by a computer. In the image, taken at dusk, the camera, field technician, and supply boxes are in the foreground. The background includes a desert mountain landscape, and a faint sunset on the horizon.
@@ -620,8 +627,12 @@ include_graphics(fullpath)
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The observed sky shows light from all sources, both natural and artificial. NPS / NSNSD
+Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The observed sky shows light from all sources, both natural and artificial. 
 :::
+
+:::{custom-style="sr Image credit"}
+NPS/NIGHT SKIES PROGRAM
+::: 
 
 :::{custom-style="sr Alternate text"}
 Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The top of the image includes a scale depicting sky brightness, which is measured in magnitude per square arcsecond (mag/arcsec²). Magnitude (mag) is a common unit for measuring the brightness of astronomical objects, and it is an inverted logarithmic scale. Lower values are brighter. A difference of 5 magnitudes corresponds to a 100x difference in brightness. The images are shown in false color, with warmer colors representing brighter skies. The upper right-hand corner displays the national park unit, site name, and date and time. The night sky image is domed in shape and expands within the frame of the panoramic image. There are grid lines that are spaced 30$^\circ$ apart and they depict the azimuth outward from the camera (0-360 $^\circ$). The observed sky is showing light from all sources, both natural and artificial. The red and yellow colors indicate sky glow from nearby cities, including **[NOTE: Include observations of one or more sources from the following list: ]**
@@ -649,8 +660,12 @@ include_graphics(artpath)
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 4. Panoramic image of artificial skyglow at the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes. NPS / NSNSD 
+Figure 4. Panoramic image of artificial skyglow at the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes. 
 :::
+
+:::{custom-style="sr Image credit"}
+NPS/NIGHT SKIES PROGRAM
+::: 
 
 :::{custom-style="sr Alternate text"}
 Figure 4. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The top of the image includes a scale depicting sky brightness, which is measured in magnitude per square arcsecond (mag/arcsec²). Magnitude (mag) is a common unit for measuring the brightness of astronomical objects, and it is an inverted logarithmic scale. Lower values are brighter. A difference of 5 magnitudes corresponds to a 100x difference in brightness. The images are shown in false color, with warmer colors representing brighter skies. The upper right-hand corner displays the national park unit, site name, and date and time. The night sky image is domed in shape and expands within the frame of the panoramic image. There are grid lines that are spaced 30^∘ apart and they depict the azimuth outward from the camera (0-360 $^\circ$). This image shows only the skyglow from artificial sources, by subtracting out all colors from natural sources. All natural light sources appear dark, which is the **~update text: predominant color in the image**. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes from **[NOTE: Include observations of one or more sources from the following list: ]**
@@ -681,14 +696,13 @@ Table 4: `r (park)` sky brightness metrics derived from the observed images.
 ```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
 
 # Convert VISSTARS_RATIO to numeric
-repdata$VISSTARS_RATIO <- as.numeric(repdata$VISSTARS_RATIO)
+repdata$VISSTARS_PCT <- as.numeric(repdata$VISSTARS_PCT)
 
 # Create dataset for table 4 data
 tab4 <- repdata %>%
-  select(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS) %>%
+  select(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS) %>%
   arrange(MID_DATE_LMT) %>%
-  mutate_if(is.numeric, round, 2) %>%
-  mutate(VISSTARS_RATIO = VISSTARS_RATIO * 100)
+  mutate_if(is.numeric, round, 2) 
 
 # Convert to better date format
 tab4$Date <- tab4$MID_DATE_LMT
@@ -702,7 +716,7 @@ tab4$hhmm <- paste(tab4$Hr, ":", tab4$dec_min, sep = "")
 
 # Select data fields for table 4
 tab4 <- tab4 %>%
-  select(Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS)
+  select(Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS)
 
 # Change column names for published table
 colnames(tab4) <- c("Date", "Time\n (hh:mm)", "Horizontal\n Illuminance \n (mlx)", 
@@ -745,7 +759,7 @@ natnum <- which(tab4[[1]] == 'Natural Sky')
 # Add superscripts
 ft4 <- compose(ft4, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
 ft4 <- compose(ft4, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
-ft4 <- compose(ft4, i = 1, j = 5, part = "header", value = as_paragraph("SQM", "\n (mag/arcsec", as_sup("2"), ")"))
+ft4 <- compose(ft4, i = 1, j = 5, part = "header", value = as_paragraph("Zenith Luminance", "\n (mag/arcsec", as_sup("2"), ")"))
 
 # Print table
 ft4
@@ -792,7 +806,7 @@ tab5 <- repdata %>%
 tab5$MID_DATE_LMT <- tab5$MID_DATE_LMT
 
 # Change column names for published table
-colnames(tab5) <- c("Date", "Bortle\n Class", "Limiting\n Magnitude", "SQM \n (mag/arcsec²)")
+colnames(tab5) <- c("Date", "Bortle\n Class", "Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
 
 # Create dataset for reference values
 refdatabc <- data.frame(Date = c('Urban Sky', 'Natural Sky'),
@@ -826,7 +840,7 @@ natnum <- which(tab5$Date == 'Natural Sky')
 # Add superscripts
 ft5 <- compose(ft5, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
 ft5 <- compose(ft5, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
-ft5 <- compose(ft5, i = 1, j = 6, part = "header", value = as_paragraph("SQM", "\n (mag/arcsec", as_sup("2"), ")"))
+ft5 <- compose(ft5, i = 1, j = 4, part = "header", value = as_paragraph("SQM", "\n (mag/arcsec", as_sup("2"), ")"))
 
 # Print table
 ft5
@@ -885,8 +899,11 @@ include_graphics(file.path(park.folder, "sALR.png"))
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (park)`. The park boundary is outlined in green. NPS / NSNSD  
-:::
+Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (park)`. The park boundary is outlined in green. :::
+
+:::{custom-style="sr Image credit"}
+NPS/NIGHT SKIES PROGRAM
+::: 
 
 :::{custom-style="sr Alternate text"}
 Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (pcat)`. The park boundary is outlined in green. Major cities around the park, including
@@ -962,7 +979,7 @@ Bortle, J. E. 2001. Introducing the Bortle Dark-Sky Scale. Sky and Telescope. 10
 
 Duriscoe, D. M. 2013. Measuring Anthropogenic Sky Glow Using a Natural Sky Brightness Model. Publications of the Astronomical Society of the Pacific. 125, 1370
 
-—. 2016. Photometric indicators of visual night sky quality derived from all-sky brightness maps. Journal of Quantitative Spectroscopy and Radiative Transfer. 181, 33
+Duriscoe, D. M. 2016. Photometric indicators of visual night sky quality derived from all-sky brightness maps. Journal of Quantitative Spectroscopy and Radiative Transfer. 181, 33
 
 Duriscoe, D. M., Anderson, S. J., Luginbuhl, C. B., & Baugh, K. E. 2018. A simplified model of all-sky artificial sky glow derived from VIIRS Day/Night band data. Journal of Quantitative Spectroscopy and Radiative Transfer. 214, 133
 

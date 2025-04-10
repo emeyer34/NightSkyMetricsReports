@@ -6,7 +6,7 @@ output: html_document
 params:
   alpha_code:
     label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
-    value: PORE
+    value: WUPA
     input: text
    
  
@@ -75,17 +75,11 @@ Table 1: `r (pcode)` sky brightness metrics derived from the observed images.
 
 ```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
 
-repdata$VISSTARS_RATIO=as.numeric(repdata$VISSTARS_RATIO)
+repdata$VISSTARS_PCT=as.numeric(repdata$VISSTARS_PCT)
 #create dataset for table4 data
-tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS) %>% 
+tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS) %>% 
   arrange(MID_DATE_LMT)%>%
-  mutate_if(is.numeric, round, 2) %>%
-  mutate(VISSTARS_RATIO=VISSTARS_RATIO*100)
-
-#%>%  #commenting out due to moving away from lost stars variable
-                        #mutate(loststars=(1-VISSTARS_RATIO)*100)%>%
-                        #relocate(loststars, .after=VISSTARS_RATIO) %>%
-                        #select(-VISSTARS_RATIO)
+  mutate_if(is.numeric, round, 2) 
 
 #convert to better date format
 tab4$Date<-tab4$MID_DATE_LMT
@@ -104,7 +98,7 @@ tab4$hhmm<-paste(tab4$Hr,":",tab4$dec_min,sep = "")
 
 
 #select data fields for table 4
-tab4<-tab4 %>% select(SITE_NAME,DNIGHT,Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_RATIO, ALR_POS)  
+tab4<-tab4 %>% select(SITE_NAME,DNIGHT,Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS)  
 
 #change column names for published table
 colnames(tab4)<- c("Site Name","Dataset","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Luminance \n (mag/arcsec2)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
