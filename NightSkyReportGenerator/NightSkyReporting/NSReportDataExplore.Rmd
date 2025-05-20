@@ -6,7 +6,7 @@ output: html_document
 params:
   alpha_code:
     label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
-    value: WUPA
+    value: UNIT
     input: text
    
  
@@ -55,7 +55,9 @@ pcode<-params$alpha_code
 ###DATA WRANGLING: NPMAPsQuery dataset
 #create report dataset
 repdata<-data %>%
-  filter(parkcode==pcode)
+  filter(parkcode==pcode)%>%
+  mutate(Date2 = as.Date(MID_DATE_LMT, format = "%m/%d/%Y")) #create sortable date field
+
 #Add hmrFull image field
 repdata$FULL_LINK<-paste("https://www.nps.gov/subjects/nightskies/graphics/",gsub("\\_.*","_hmrFULL.jpg",repdata$FULLPATH), sep="")
 #Add hmrArt image field #subtraction
@@ -77,9 +79,10 @@ Table 1: `r (pcode)` sky brightness metrics derived from the observed images.
 
 repdata$VISSTARS_PCT=as.numeric(repdata$VISSTARS_PCT)
 #create dataset for table4 data
-tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS) %>% 
-  arrange(MID_DATE_LMT)%>%
-  mutate_if(is.numeric, round, 2) 
+tab4<-repdata %>% select(SITE_NAME,DNIGHT,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS,Date2) %>% 
+  arrange(Date2)%>%
+  mutate_if(is.numeric, round, 2) %>%
+  select(-Date2)
 
 #convert to better date format
 tab4$Date<-tab4$MID_DATE_LMT
@@ -164,9 +167,10 @@ Table 2: `r (pcode)` visual and SQM measurements.
 ```{r table5, echo=FALSE, ft.align="center", out.width = '100%'}
 
 #create dataset for table5 data
-tab5<-repdata %>% select(SITE_NAME,DNIGHT, MID_DATE_LMT, BORTLE, ZLM, SQM) %>% #Need to verify correct measures
-  arrange(MID_DATE_LMT)%>%
-  mutate_if(is.numeric, round, 2) 
+tab5<-repdata %>% select(SITE_NAME,DNIGHT, MID_DATE_LMT, BORTLE, ZLM, SQM,Date2) %>% #Need to verify correct measures
+  arrange(Date2)%>%
+  mutate_if(is.numeric, round, 2)%>%
+  select(-Date2)
 
 #convert to better date format
 tab5$MID_DATE_LMT<-tab5$MID_DATE_LMT

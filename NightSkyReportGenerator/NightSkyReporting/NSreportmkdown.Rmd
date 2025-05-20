@@ -9,7 +9,7 @@ params:
     input: text
   alpha_code:
     label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
-    value: LAVO
+    value: ex. LAVO
     input: text
     plottitle:
   viirsyear:
@@ -38,11 +38,11 @@ params:
     sep: ""
   soi:
     label: "Enter the site of interest to highlight in the report (make sure it is how it is spelled out in data exploration report:"
-    value: Lassen Peak
+    value: ex. Lassen Peak
     input: text
   soidset:
     label: "Enter the soi dataset from the data exploration report:"
-    value: LAVO070716
+    value: ex. LAVO070716
     input: text
   soidate:
     label: "Enter the enter soi dataset date:"
