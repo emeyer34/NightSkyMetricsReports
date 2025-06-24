@@ -36,11 +36,11 @@ b.	Extract contents of the gdb into the project folder: `NightSkyMetricsReports\
 2.	Open `NightSkyReportProcess.aprx`.<br>
 3.	Select the `Processing Map`<br>
 4.	In `NightSkyScripts.ipynb`, update the `"repgen"` file path to your local project folder and change the park unit code to the park you are reporting on. Then, select `Run All` in the `Cells` menu.<br> 
-5.	In the `ParkOverview` Layout, select the `StudySites` map. Remove any outdated park study sites or boundary layers.<br> 
+5.	In the `ParkOverview` Layout, select the `StudySites` map. Remove all pre-existing park study sites or park boundary layers.<br> 
 6.	In `LayoutScripts_ParkOverview`, select `Run All` in the `Cells` menu.<br> 
 7.	Return to the `ParkOverview Layout` and refine the map by adjusting labels and zoom levels as needed. Double-click the map title to update the dynamic text to display the Unit_Name from the Park Unit boundary file. When satisfied, export the layout and save it in the park unit folder at:<br> 
 `NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Figures`.<br>  In the folder of Replace the existing file named `park_geographic_location.PNG`.<br> 
-8.	Select the `ALR_PARK` map in the sALR layout. In `LayoutScripts_sALR`, select `Run All` in the `Cells` menu.<br> 
+8.	Select the `ALR_PARK` map in the sALR layout. Remove all pre-existing park boundary layers. In `LayoutScripts_sALR`, select `Run All` in the `Cells` menu.<br> 
 9.	Return to the `sALR layout` and adjust the map to include nearby areas that may influence ALR results. Double-click the map title to update the dynamic text to display the Unit_Name. When satisfied, export the layout and save it in the appropriate park unit folder at: <br> `NightSkyMetricsReports\NightSkyReportGenerator\NightSkyReporting\Figures`. <br> In the folder of Replace the existing file named `sALR.PNG`.<br> 
 
 ## Step 3. Data Exploration<br> 
