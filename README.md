@@ -18,7 +18,7 @@
 a.	Open `NightSkyReporting.Rproj`<br>
 b.	In the R project, open `NSreportmkdown.Rmd` <br>
 c.	Run the code chunk labeled “r packages” on line 54 by pressing the play button on the upper right of the code chunk. This process may take some time if the required packages have not been previously downloaded. <br>
-6.	Download the geodatabase from the NSNSD `"Software and Scripts"` folder on SharePoint. This folder will be updated with the latest sALR model, and users will be notified when a new geodatabase is available: <br>
+6.	Download the geodatabase from the NSNSD `"Planning"` channel on Teams: https://doimspp.sharepoint.com/:u:/r/sites/nsnsdallstaff/Shared%20Documents/Planning/Night%20Sky%20Reports/DataUpdates/NightSkyReportProcess.gdb.zip?csf=1&web=1&e=oxb9yM. This folder will be updated with the latest sALR model, and users will be notified when a new geodatabase is available: <br>
 a.	sALR Database <br>
 b.	Extract contents of the gdb into the project folder: `NightSkyMetricsReports\NightSkyReportGenerator\ArcPro\NightSkyReportProcess`
 

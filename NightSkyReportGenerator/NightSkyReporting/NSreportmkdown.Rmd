@@ -14,7 +14,7 @@ params:
     plottitle:
   viirsyear:
     label: "Enter the year of the last viirs satellite/ALR model"
-    value: 2023
+    value: 2024
     input: slider
     min: 2015
     max: 2035
@@ -171,8 +171,9 @@ daynum<-sum(daynum$n)
 
 # Date calculations
 edate <- min(repdata$Date)
+edate <- format(as.Date(edate), "%B %d, %Y")
 ldate <- max(repdata$Date)
-
+ldate <- format(as.Date(ldate), "%B %d, %Y")
 # Average zenith luminance and visibility text descriptions
 avebrightvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) == 1, "a single measurement", "the average"))
 avebright <- format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA, na.rm = TRUE)), 2), nsmall = 2)
@@ -371,12 +372,12 @@ The night sky is an inseparable element of wild areas for park visitors and wild
 
 The *Organic Act of 1916* specifies the NPS shall conserve resources unimpaired for the enjoyment of future generations. The *General Authorities Act of 1970* specifies high standards for NPS management, referring to “superlative natural, historic, and recreation areas” with “superb environmental quality... managed for the benefit and inspiration of all the people of the United States.” Accordingly, section 4.10 of the *2006 NPS Management Policies* states: “The Service will preserve, to the greatest extent possible, the natural lightscapes of parks, which are natural resources and values that exist in the absence of human-caused light.”
 
-The Natural Sounds and Night Skies Division, in collaboration with NPS regions, parks, and programs, provides servicewide support for night sky and nocturnal resource conservation through measurements, modeling, critical analysis, knowledge synthesis, and informed decision making. This report measures night sky brightness using images taken from inside the park and from a satellite circling the globe. The images taken inside the park provide accurate measurements of the night sky that wildlife and park visitors experience. The satellite images measure the upward radiance of the nighttime earth, providing a regional perspective of the lights that are altering the night sky in the park. Collectively, these data specify the condition of the night sky and the locations of light sources that are degrading it.
+The Natural Sounds and Night Skies Division, in collaboration with NPS regions, parks, and programs, provides servicewide support for night sky and nocturnal resource conservation through measurements, modeling, critical analysis, knowledge synthesis, and informed decision making. This report measures night sky brightness using images taken from inside the park and from a satellite circling the globe. The images taken inside the park provide accurate measurements of the night sky that wildlife and park visitors experience. The satellite images measure the upward radiance of the nighttime Earth, providing a regional perspective of the lights that are altering the night sky in the park. Collectively, these data specify the condition of the night sky and the locations of light sources that are degrading it.
 
 In the Methods chapter, we describe data collection and processing procedures for night sky images taken in parks and satellite images of stray light from developed areas. In the Results chapter, we report the sky quality and identify influences from nearby cities as seen in the images. **~[NOTE: Remove following text where necessary for current report] Next, we discuss the natural brightness variation, measurement uncertainty, data quality and anomalies, glare, and long-term trend in the Discussion chapter. Finally, the Conclusions chapter summarizes our findings. In Appendix A: Observation Notes and Panoramic Images, we provide the notes taken by the observers during data collection and a set of panoramic images for each observation event.**
 
 ## Regional Setting
-Light from anthropogenic sources has altered the natural luminance of the night sky throughout the continental United States and across much of the globe (Falchi et al., 2016; Kyba et al., 2017). Light from anthropogenic sources that is scattered by or reflected off air molecules and atmospheric aerosols brightens the sky and washes out celestial objects. This anthropogenic scattered light is called skyglow. Light sources up to 300 km (∼200 miles) distant can cause skyglow. Skyglow artificially illuminates the landscape and degrades visitor opportunities to view planets, stars, galaxies, and other astronomical objects.
+Light from anthropogenic sources has altered the natural luminance of the night sky throughout the continental United States and across much of the globe (Falchi et al., 2016; Kyba et al., 2017). Light from anthropogenic sources that is scattered by or reflected off air molecules and atmospheric aerosols brightens the sky and washes out celestial objects. This anthropogenic scattered light is called skyglow. Light sources up to 300 km (∼200 miles) distant can cause skyglow (Duriscoe et al. 2018). Skyglow artificially illuminates the landscape and degrades visitor opportunities to view planets, stars, galaxies, and other astronomical objects.
 
 `r (pcat)` is located near **~[insert description of `r (pcode)` here.]** (Figure 1). The park is in **~[Enter `r (pcode)` habitat and landscape description here]**. The nearest populated centers are 
 ```{r clist2,echo=FALSE, message=FALSE,results = 'asis'}
@@ -648,7 +649,7 @@ cat(paste(lightsource$Place, collapse = ", "), "\n")
 
 <br>
 
-```{r fig4, echo=FALSE, ft.align="center", out.width='100%'}
+```{r fig4, echo=FALSE, ft.align="center", out.width='100%',dpi=300}
 # Create dataset for the figure
 fig4 <- repdata %>%
   select(DNIGHT, SITE_NAME, ART_LINK) %>%
@@ -774,7 +775,7 @@ ft4
 
 :::{custom-style="sr Table note"}
 
-^A^ Rock Creek Park in Washington, DC was used as the urban sky reference.
+^A^ Rock Creek Park in Washington, DC, was used as the urban sky reference.
 
 ^B^ The median natural sky is the natural reference condition.
 
@@ -792,6 +793,32 @@ The horizontal illuminance describes the amount of light landing on a horizontal
 
 
 :::
+
+
+
+```{r resultwrangletab4, echo=FALSE, ft.align="center"}
+# Calculate maximum vertical illuminance
+maxvert <- round(max(repdata$MAXVERT_MLX, na.rm = TRUE), digits = 2)
+maxvertref <- ifelse(maxvert < 0.40, "less than", 
+                     ifelse(maxvert == 0.40, "equal to", "greater than"))
+
+# Calculate average zenith luminance
+zenskyb <- round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits = 2)
+
+```
+
+
+:::{custom-style="sr Normal"}
+
+
+The vertical illuminance describes the light striking a vertical surface. The vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From the `r (daynum)` observation nights in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx in all observations. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low, providing a refuge for crepuscular and nocturnal species in the park.**
+
+The zenith sky brightness measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an average `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
+
+The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)` of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
+
+All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate impaired sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
+
 
 :::{custom-style="sr Table caption"}
 Table 5. `r (park)` visual and SQM measurements. 
@@ -856,7 +883,7 @@ ft5
 
 :::{custom-style="sr Table note"}
 
-^A^ Rock Creek Park in Washington, DC was used as the urban sky reference.
+^A^ Rock Creek Park in Washington, DC, was used as the urban sky reference.
 
 ^B^ The median natural sky is the natural reference condition.
 
@@ -864,38 +891,14 @@ ft5
 
 :::
 
-
-```{r resultwrangletab4, echo=FALSE, ft.align="center"}
-# Calculate maximum vertical illuminance
-maxvert <- round(max(repdata$MAXVERT_MLX, na.rm = TRUE), digits = 2)
-maxvertref <- ifelse(maxvert < 0.40, "less than", 
-                     ifelse(maxvert == 0.40, "equal to", "greater than"))
-
-# Calculate average zenith luminance
-zenskyb <- round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits = 2)
-
-```
-
-
-:::{custom-style="sr Normal"}
-
-
-The vertical illuminance describes the light striking a vertical surface. The vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From the `r (daynum)` observation nights in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx in all observations. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low, providing a refuge for crepuscular and nocturnal species in the park.**
-
-The zenith sky brightness measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an average `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
-
-The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)` of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
-
-All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate impaired sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
-
 Indicators derived from these ground-based measurements indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. These indicators are supported by visual observations and assessments at the site. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`). `r (bortdesc)`
 
 Naked eye limiting magnitude (NELM) is the magnitude of the faintest star we can see in the sky with naked eyes. As the night sky brightness increases, the limiting magnitude will degrade to a lower value. The NELM will also depend on the observer and will increase with the eye’s dark adaptation. A NELM of 6.6 is considered near pristine under average conditions, while 7.0 is achievable under good seeing conditions and with proper dark adaptation of the eye. A NELM of 7.4 is excellent, just about the faintest attainable. A number lower than 6.3 usually indicates degraded sky quality. The limiting magnitude is also a common metric used by citizen scientists to assess the sky brightness globally. In `r (pcode)`, the `r (avenelmvar)` limiting magnitude is `r (avenelm)`, approaching `r (nelmcatdesc)`.
 
-The hand-held Sky Quality Meter (SQM) is an economic and convenient tool to take a single value of sky brightness measurement with just one click. We point SQM towards zenith when taking a reading. The SQM has a wide field of view; its full width half maximum of the angular sensitivity is ∼42◦. Although getting a reading is fast and easy, the instrument does not reliably measure the sky brightness when the sky is darker than ∼21.5 mag/arcsec^2^. Our SQM measurements in `r (pcode)` `r (avesqmvar)` to `r (avesqm)` mag/arcsec^2^, **~indicating the zenith is darker than what we can accurately measure with a SQM.**
+The hand-held Sky Quality Meter (SQM) is an economic and convenient tool to take a single value of sky brightness measurement with just one click. We point SQM towards zenith when taking a reading. The SQM has a wide field of view; its half width half maximum of the angular sensitivity is ∼42◦. Although getting a reading is fast and easy, the instrument does not reliably measure the sky brightness when the sky is darker than ∼21.5 mag/arcsec^2^. Our SQM measurements in `r (pcode)` `r (avesqmvar)` to `r (avesqm)` mag/arcsec^2^, **~indicating the zenith is darker than what we can accurately measure with a SQM.**
 
 ## Regional Sky Brightness Model
-Figure 5 displays park and regional predictions of skyglow based on the SALR model using the annual `r (viirsyear)` cloud-free composite of VIIRS data. The metric depicted is all-sky average sky brightness, expressed as a ratio of artificial to natural background. Skyglow can be seen from up to 300 kilometers away from large metropolitan areas. The map displays the park and the surrounding area, including cities within approximately `r (sdist)` km. This map provides a landscape view of the average sky brightness in and around the park. The scale on the left gives the ratio between the natural and artificial light where the lower the ratio, the better the night sky viewing and the lower the levels of visible artificial light.
+Figure 5 displays park and regional predictions of skyglow based on the SALR model using the annual `r (viirsyear)` cloud-free composite of VIIRS data. The metric depicted is all-sky average sky brightness, expressed as a ratio of artificial to natural background. Skyglow can be seen from up to 300 kilometers away from large metropolitan areas (Duriscoe et al. 2018). The map displays the park and the surrounding area, including cities within approximately `r (sdist)` km. This map provides a landscape view of the average sky brightness in and around the park. The scale on the left gives the ratio between the natural and artificial light where the lower the ratio, the better the night sky viewing and the lower the levels of visible artificial light.
 
 ```{r fig5, echo=FALSE, out.width='100%'}
 # Include the sALR image
@@ -904,7 +907,7 @@ include_graphics(file.path(park.folder, "sALR.png"))
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (park)`. The park boundary is outlined in green. :::
+Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (park)`. The park boundary is outlined in green. 
 :::
 :::{custom-style="sr Image credit"}
 NPS/NIGHT SKIES PROGRAM
@@ -945,7 +948,7 @@ for (i in seq_along(pmodlist)) {
 
 # Discussion
 ## Variation in Natural Sources
-Variations in airglow activity can change sky brightness and complicate the assessment of sky quality. Airglow is caused by particles releasing energy in the form of light in the earth’s upper atmosphere. These particles obtain the energy from the sun and cosmic rays. The sun shows an activity cycle of eleven years, and this cycle seems to correlate with the airglow brightness (Patat, 2008). While the average airglow brightness shows long-term variation, the brightness and pattern can change in minutes. Bright airglow will wash out some night sky features, such as faint galaxies and details in the Milky Way, directly affecting the visual assessment of the night sky. In addition, the indicators derived from the observed sky brightness, including the illuminance and zenith brightness, can also be affected. To account for this natural variation, we subtract airglow in our modeling process before estimating the skyglow brightness. However, the uncertainty of the associated metrics (% of visible stars and ALR values) can still be high due to the uncertainty of airglow modeling. In general, suburban skies (Bortle Class 4 and 5) are most susceptible to the large percentage error from the airglow modeling process compared to rural and urban sites. A detailed discussion about the airglow modeling uncertainty can be found in Duriscoe (2013).
+Variations in airglow activity can change sky brightness and complicate the assessment of sky quality. Airglow is caused by particles releasing energy in the form of light in the Earth’s upper atmosphere. These particles obtain the energy from the sun and cosmic rays. The sun shows an activity cycle of eleven years, and this cycle seems to correlate with the airglow brightness (Patat, 2008). While the average airglow brightness shows long-term variation, the brightness and pattern can change in minutes. Bright airglow will wash out some night sky features, such as faint galaxies and details in the Milky Way, directly affecting the visual assessment of the night sky. In addition, the indicators derived from the observed sky brightness, including the illuminance and zenith brightness, can also be affected. To account for this natural variation, we subtract airglow in our modeling process before estimating the skyglow brightness. However, the uncertainty of the associated metrics (% of visible stars and ALR values) can still be high due to the uncertainty of airglow modeling. In general, suburban skies (Bortle Class 4 and 5) are most susceptible to the large percentage error from the airglow modeling process compared to rural and urban sites. A detailed discussion about the airglow modeling uncertainty can be found in Duriscoe (2013).
 
 Another factor that could significantly affect the skyglow measurement is the amount of aerosols in the atmosphere. Aerosols can come from natural sources (i.e., wind-borne dust, wildfire smoke, sea spray, and volcanic debris), but they can also originate from human activities (i.e., industrial emissions, fossil fuel combustion, and waste and biomass burning). From the visual observation perspective, observers will see fewer stars if the aerosol concentration is higher. From the skyglow measurement perspective, a higher aerosol level will enhance the brightness of nearby sources but diminish the brightness of distant sources. Variation in aerosol content can affect the sky brightness measurements even with no net increase in light intensity from ground-based sources.
 
@@ -985,7 +988,7 @@ Moreover, visitors and staff can be encouraged to follow Leave No Trace Dark Sky
 
 # Bibliography
 :::{custom-style="sr Literature cited"}
-Baugh, K., Hsu, F.-C., Elvidge, C. D., & Zhizhin, M. 2013. Nighttime lights compositing using the VIIRS day-night band: Preliminary results. Proceedings of the Asia-Pacific Advanced Network. 35, 70
+Baugh, K., F.-C. Hsu, C. D. Elvidge, and M. Zhizhin. 2013. Nighttime lights compositing using the VIIRS day-night band: Preliminary results. Proceedings of the Asia-Pacific Advanced Network. 35, 70
 
 Bortle, J. E. 2001. Introducing the Bortle Dark-Sky Scale. Sky and Telescope. 101
 
@@ -993,21 +996,21 @@ Duriscoe, D. M. 2013. Measuring Anthropogenic Sky Glow Using a Natural Sky Brigh
 
 Duriscoe, D. M. 2016. Photometric indicators of visual night sky quality derived from all-sky brightness maps. Journal of Quantitative Spectroscopy and Radiative Transfer. 181, 33
 
-Duriscoe, D. M., Anderson, S. J., Luginbuhl, C. B., & Baugh, K. E. 2018. A simplified model of all-sky artificial sky glow derived from VIIRS Day/Night band data. Journal of Quantitative Spectroscopy and Radiative Transfer. 214, 133
+Duriscoe, D. M., S. J. Anderson,  C. B. Luginbuhl, K.E., and Baugh. 2018. A simplified model of all-sky artificial sky glow derived from VIIRS Day/Night band data. Journal of Quantitative Spectroscopy and Radiative Transfer. 214, 133
 
-Duriscoe, D. M., Luginbuhl, C. B., & Moore, C. A. 2007. Measuring Night-Sky Brightness with a Wide-Field CCD Camera. Publications of the Astronomical Society of the Pacific. 119, 192
+Duriscoe, D. M., C. B. Luginbuhl, and C. A. Moore. 2007. Measuring Night-Sky Brightness with a Wide-Field CCD Camera. Publications of the Astronomical Society of the Pacific. 119, 192
 
-Falchi, F., Cinzano, P., Duriscoe, D., et al. 2016. The new world atlas of artificial night sky brightness. Science Advances. 2, e1600377
+Falchi, F., P. Cinzano, D. Duriscoe, et al. 2016. The new world atlas of artificial night sky brightness. Science Advances. 2, e1600377
 
-Hillger, D., Kopp, T., Lee, T., et al. 2013. First-Light Imagery from Suomi NPP VIIRS. Bulletin of the American Meteorological Society. 94, 1019
+Hillger, D., T. Kopp, T. Lee, et al. 2013. First-Light Imagery from Suomi NPP VIIRS. Bulletin of the American Meteorological Society. 94, 1019
 
-Kyba, C. C. M., Kuester, T., Sánchez de Miguel, A., et al. 2017. Artificially lit surface of Earth at night increasing in radiance and extent. Science Advances. 3. doi:10.1126/sciadv.1701528
+Kyba, C. C. M., T. Kuester, A. Sánchez de Miguel, et al. 2017. Artificially lit surface of Earth at night increasing in radiance and extent. Science Advances. 3. doi:10.1126/sciadv.1701528
 
-Lee, S., Chiang, K., Xiong, X., Sun, C., & Anderson, S. 2014. The S-NPP VIIRS Day-Night Band on-orbit calibration/characterization and current state of SDR products. Remote Sensing. 6, 12427
+Lee, S., K. Chiang, X. Xiong, C. Sun, and S. Anderson. 2014. The S-NPP VIIRS Day-Night Band on-orbit calibration/characterization and current state of SDR products. Remote Sensing. 6, 12427
 
-Lee, T. E., Miller, S. D., Turk, F. J., et al. 2006. The NPOESS VIIRS Day/Night Visible Sensor. Bulletin of the American Meteorological Society. 87, 191
+Lee, T. E., S. D.  Miller, F. J. Turk, et al. 2006. The NPOESS VIIRS Day/Night Visible Sensor. Bulletin of the American Meteorological Society. 87, 191
 
-Lee, T. F., Nelson, C. S., Dills, P., et al. 2010. NPOESS: Next-Generation Operational Global Earth Observations. Bulletin of the American Meteorological Society. 91, 727
+Lee, T. F., C. S. Nelson, P. Dills, et al. 2010. NPOESS: Next-Generation Operational Global Earth Observations. Bulletin of the American Meteorological Society. 91, 727
 
 Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Paranal. Astronomy and Astrophysics. 481, 575
 :::
