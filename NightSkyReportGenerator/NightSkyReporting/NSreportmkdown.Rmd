@@ -201,8 +201,8 @@ minALR <- percent(min(repdata$ALR_POS, na.rm = TRUE))
 maxALR <- percent(max(repdata$ALR_POS, na.rm = TRUE))
 aveALRdec <- mean(repdata$ALR_POS, na.rm = TRUE)
 
-# Classify ALR based on Duriscoe standards
-alrcat <- ifelse(aveALRdec <= 0.3, "excellent", ifelse(aveALRdec <= 2.0, "impaired", "not readily visible"))
+# Classify ALR based on Duriscoe 2018 standards, but these terms are a translation of that paper and first appeared in the Chaco night sky report 
+alrcat <- ifelse(aveALRdec <= 0.3, "excellent", ifelse(aveALRdec <= 2.0, "degraded", "not readily visible"))
 
 # Average SQM
 avesqmvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) == 1, "a single measurement", "average"))
@@ -252,7 +252,7 @@ alrmodel <- read_excel(paste(".//Parks//", pcode, "//sALRoutput_", pcode, ".xls"
 pmodlist <- unique(alrmodel$UNIT_CODE)
 
 # Categorical description model value
-alrmodel$cat <- ifelse(alrmodel$MEAN <= 0.3, "excellent", ifelse(alrmodel$MEAN <= 2.0, "impaired", "not readily visible"))
+alrmodel$cat <- ifelse(alrmodel$MEAN <= 0.3, "excellent", ifelse(alrmodel$MEAN <= 2.0, "degraded", "not readily visible"))
 alrmodmed <- round(median(alrmodel$MEDIAN), digits = 2)
 
 ### Data Wrangling: ALR Model Symbology
@@ -839,11 +839,11 @@ zenskyb <- round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits 
 
 The vertical illuminance describes the light striking a vertical surface. The vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From the `r (daynum)` observation nights in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx in all observations. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low, providing a refuge for crepuscular and nocturnal species in the park.**
 
-The zenith sky brightness measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an average `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
+The zenith sky brightness is measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an average `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
 
 The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)` of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
 
-All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate impaired sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
+All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate degraded sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible (categories modified from Duriscoe et al. 2018). The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
 
 
 :::{custom-style="sr Table caption"}
