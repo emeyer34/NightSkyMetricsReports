@@ -220,6 +220,10 @@ avesqm <- mean(repdata$SQM, na.rm = TRUE)
 avesqm <- format(round(avesqm, 2), nsmall = 2)
 # End avesqm calc
 
+# horizontal illuminance
+avehor<- format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE),2), nsmall = 2)
+
+
 # Number of datasets
 sumdset <- sum(repdata$DSET, na.rm = TRUE)
 
@@ -311,7 +315,7 @@ This report characterizes night sky conditions in `r (pcat)` using measurements 
 
 The sky overhead remains **~[insert manual description]** with an `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^. We estimate more than `r (avestarvis)`% naked eye stars remained visible under the measured sky brightness, providing a **~[insert manual description]** opportunity to view the natural night sky from the park during a cloudless moonless night. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions on average.
 
-In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. `r (bortdesc)` The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, indicating the zenith is darker than what we can accurately measure with a SQM.  The main impacts on `r (pcode)`’s night sky quality were the light domes from
+In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, indicating the zenith is darker than what we can accurately measure with a SQM.  The main impacts on `r (pcode)`’s night sky quality, ordered by predicted brightness of light domes, were from
 ```{r clist1,echo=FALSE, message=FALSE,results = 'asis'}
 # Print names from lightsource$NAME with a comma separator
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
@@ -418,7 +422,7 @@ include_graphics(file.path(park.folder, "park_geographic_location.png"))
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 1. Geographic location of the park, including the `r (sitenum)` sites from the current study.  `r (park)` is located near **~[Enter broad geographic description here]** . In general, light sources within 300 km could be visible and have the potential to brighten the night sky.
+Figure 1. Geographic location of the park, including the `r (sitenum)` sites from the current study are depicted by black star markers.  `r (park)` is located near **~[Enter broad geographic description here]** . In general, light sources within 300 km could be visible and have the potential to brighten the night sky.
 :::
 
 :::{custom-style="sr Image credit"}
@@ -435,7 +439,7 @@ Figure 1. Geographic location of the park. `r (park)` is located near  the. In g
 The NPS developed the camera system and the observing method to collect high-resolution images of the night sky from horizon to horizon (Duriscoe et al., 2007). The NPS camera system is composed of a commercial Nikon lens, a V-band filter, and a research-grade, monochromatic charge-coupled device (CCD). The filter only lets visible light pass through, allowing the detected signal to closely represent what human eyes can see based on our spectral sensitivity. Because each image has limited field of view, a set of images needs to be taken to cover the entire sky. A robotic mount is utilized to automatically position the camera for each image. Each image set takes up to 40 minutes to complete, depending on the specific system used and the exposure time. To minimize the amount of sun and moon light, data are collected when the sun is more than 18$^\circ$ below the horizon, and when the moon also is below the horizon. The weather conditions required for data
 collection are clear nights with almost no cloud cover. 
 
-Figure 2 shows a typical NPS Night Skies camera system used from 2010 onward. This camera system captures a composite image of the night sky by creating a mosaic from 45 images of portions of the sky, with each portion spanning a square 24$^\circ$ by 24$^\circ$. Depending on the sky brightness at the observing site, the exposure time is usually set to be somewhere between 8 to 12 seconds for each image. Each resulting image set will yield a 40-million-pixel image mosaic covering the entire night sky and 7$^\circ$ below the horizon.
+Figure 2 shows a typical NPS Night Skies camera system used from 2010 onward. This camera system captures a composite image of the night sky by creating a mosaic from 45 images of portions of the sky, with each portion spanning a square 24$^\circ$ by 24$^\circ$. Depending on the sky brightness at the observing site, the exposure time is usually set to be somewhere between 8 to 12 seconds for each image. Each resulting image set will yield a 40-million-pixel image mosaic covering the entire night sky and 6$^\circ$ below the horizon.
 
 :::
 
@@ -604,7 +608,7 @@ lights for our model input. The Simplified All-sky Light pollution Ratio (SALR) 
 the Results chapter.
 
 # Results
-The ground-based observations yield the calibrated panoramic images of the night sky. Figure 3 shows an example of the image product associated with each data set. In Appendix A: Observation Notes and Panoramic Images, we provide links to the reference images for each night, both observed and artificial skyglow. We use magnitude per square arcsecond (mag/arcsec^2^) for measuring the sky surface brightness. Magnitude (mag or mags) is a standard unit for measuring the brightness of astronomical objects, and it is in inverted logarithmic scale. Under clear moonless conditions, a sky surface brightness of 22 mag/arcsec^2^ would be considered pristine, and a sky surface brightness of < 20 mag/arcsec^2^ would be considered greatly deviated from the natural condition. The warmer colors in these images represent brighter skies. Figure 3 shows the observed night sky, which contains light from both natural and artificial sources. Purple and dark blue colors indicate an unpolluted sky, and the Milky Way under the natural condition appears green in this color scheme. Figure 4 shows only the light from artificial sources. Light domes along the horizon from the nearby area are more apparent in the second image.
+The ground-based observations yield the calibrated panoramic images of the night sky. Figures 3 and 4 show examples of the image products associated with each data set (`r (soi)`; `r (soidate)`). In Appendix A: Observation Notes and Panoramic Images, we provide links to the reference images for each night, both observed and artificial skyglow. We use magnitude per square arcsecond (mag/arcsec^2^) for measuring the sky surface brightness. Magnitude (mag or mags) is a standard unit for measuring the brightness of astronomical objects, and it is in inverted logarithmic scale. Under clear moonless conditions, a sky surface brightness of 22 mag/arcsec^2^ would be considered pristine, and a sky surface brightness of < 20 mag/arcsec^2^ would be considered greatly deviated from the natural condition. The warmer colors in these images represent brighter skies. Figure 3 shows the observed night sky, which contains light from both natural and artificial sources. Purple and dark blue colors indicate an unpolluted sky, and the Milky Way under the natural condition appears green in this color scheme. Figure 4 shows only the light from artificial sources. Light domes along the horizon from the nearby area are more apparent in the second image.
 
 In the image, the largest and brightest light dome, or cluster of light domes, is from **[Enter city or cities]**. The light dome from **[enter more observations beyond this point]**. 
 
@@ -815,7 +819,7 @@ ft4
 
 Illuminance is the amount of visible light incident on a unit surface area. It is more sensitive to light striking closer to perpendicular to the surface. Specifically, the impact from a light source is weighted by the cosine of its angle of incidence. For example, the weighting factors for sources incident perpendicular to the surface, 60 degrees away, and 90 degrees away (parallel to the surface) are 1, 0.5, and 0, respectively.
 
-The horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From the `r (daynum)` observation nights in `r (pcode)`, **~[NOTE: summarize from Table 4 here:] the average horizontal illuminance is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent the natural illumination on the plane.**
+The horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From the `r (daynum)` observation nights in `r (pcode)`, the average horizontal illuminance of `r (avehor)` **~[NOTE: summarize from Table 4 here:]is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent the natural illumination on the plane.**
 
 
 :::
@@ -841,7 +845,7 @@ The vertical illuminance describes the light striking a vertical surface. The ve
 
 The zenith sky brightness is measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an average `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
 
-The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)` of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
+The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)`% of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
 
 All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate degraded sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible (categories modified from Duriscoe et al. 2018). The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
 
@@ -917,7 +921,7 @@ ft5
 
 :::
 
-Indicators derived from these ground-based measurements indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. These indicators are supported by visual observations and assessments at the site. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`). `r (bortdesc)`
+Indicators derived from these ground-based measurements indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. These indicators are supported by visual observations and assessments at the site. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`). A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` **~add descriptin here summarizing Bortle class, ex. Under this Bortle condition, the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.**
 
 Naked eye limiting magnitude (NELM) is the magnitude of the faintest star we can see in the sky with naked eyes. As the night sky brightness increases, the limiting magnitude will degrade to a lower value. The NELM will also depend on the observer and will increase with the eye’s dark adaptation. A NELM of 6.6 is considered near pristine under average conditions, while 7.0 is achievable under good seeing conditions and with proper dark adaptation of the eye. A NELM of 7.4 is excellent, just about the faintest attainable. A number lower than 6.3 usually indicates degraded sky quality. The limiting magnitude is also a common metric used by citizen scientists to assess the sky brightness globally. In `r (pcode)`, the `r (avenelmvar)` limiting magnitude is `r (avenelm)`, approaching `r (nelmcatdesc)`.
 
@@ -945,7 +949,7 @@ Figure 5. A model of average all-sky light pollution ratio (ALR) in the region s
 # Create a comma-separated list of places from lightsource$Place
 cat(paste(lightsource$Place, collapse = ", "), "\n")
 ```
-are displayed. Nearby major roads and highways are included and intersect the cities. The light pollution model displays higher values in green, yellow, orange and yellow. Decreasing ALR values are shown from light blue to purple. The nearby cities are within higher ALR values and within the warmer colors. In `r (pcode)`, most of the park is in the lowest ALR color range (`r (parkcolor)`). **~The western section of the park near to the cities are lighter purple, indicating increased light pollution.** 
+are displayed. Nearby major roads and highways are included and intersect the cities. The light pollution model displays higher values in green, red, orange and yellow. Decreasing ALR values are shown from light blue to purple. The nearby cities are within higher ALR values and within the warmer colors. In `r (pcode)`, most of the park is in the lowest ALR color range (`r (parkcolor)`). **~The western section of the park near to the cities are lighter purple, indicating increased light pollution.** 
 :::
 
 `r (pcode)` is **~nearly surrounded by light sources, but at distances great enough to produce minimal predicted impact**. In the largest nearby communities such as 
@@ -991,9 +995,9 @@ Glare is bright and uncomfortable light shining from the source directly to the 
 We do not determine whether there is any long-term change of skyglow brightness in our report. Our ground-based observations are limited by the sporadic and small number of sampling points in time. In addition, because each observation was taken under slightly different atmosphere conditions, we cannot compare the measurements directly. These measurements, however, do accurately reflect the sky quality at those specific points of time. For the satellite data, there is currently a large uncertainty associated with the measurements. Ideally, the monthly VIIRS day/night band composites could offer a great tool for determining the long-term trend. However, the measured upward radiance shows a large variation from month to month. This variation is likely an artifact rather than the actual lighting level change. Before this variation is well understood, we cannot use the satellite data to identify the trend.
 
 # Conclusions
-Overall, the night sky conditions at `r (pcode)` are **~very good**. **~The measured sky brightness averaged over the whole sky is only slightly brighter than the natural conditions, allowing wildlife and park visitors to experience near natural darkness at night. From many locations within the park, visitors can find places free of direct glare that allow for dark adaptation under an almost natural sky. During clear and dark nights, visitors will have an opportunity to see the Milky Way (nearly horizon to horizon), complete constellations, deep sky objects, and fainter natural sources of light such as the zodiacal light and airglow.**
+Overall, the night sky conditions at `r (pcode)` are **~very good**. **~The measured sky brightness averaged over the whole sky is only slightly brighter than the natural conditions, allowing wildlife and park visitors to experience near natural darkness at night. From many locations within the park, visitors can find places free of direct glare that allow for dark adaptation under an almost natural sky. During clear and dark nights, visitors will have an opportunity to see the Milky Way (nearly horizon to horizon), complete constellations, deep sky objects, and fainter natural sources of light such as the zodiacal light and airglow.** Additionally, night skies were visually classified as `r (bortcat)`, based on the visibility of astronomical objects. Finally, the NELM is is approaching `r (nelmcatdesc)`.
 
-In `r (pcode)`, night skies were visually classified as `r (bortcat)`, based on the visibility of astronomical objects. The NELM is is approaching `r (nelmcatdesc)`. `r (bortdesc)` The main impacts to `r (pcode)`’s night sky quality were the light domes from
+The main impacts to `r (pcode)`’s night sky quality were the light domes from
 ```{r clist7, echo=FALSE, message=FALSE, results='asis'}
 # Create a comma-separated list of places from lightsource$Place
 cat(paste(lightsource$Place, collapse = ", "), "\n")
@@ -1037,6 +1041,8 @@ Lee, S., K. Chiang, X. Xiong, C. Sun, and S. Anderson. 2014. The S-NPP VIIRS Day
 Lee, T. E., S. D.  Miller, F. J. Turk, et al. 2006. The NPOESS VIIRS Day/Night Visible Sensor. Bulletin of the American Meteorological Society. 87, 191
 
 Lee, T. F., C. S. Nelson, P. Dills, et al. 2010. NPOESS: Next-Generation Operational Global Earth Observations. Bulletin of the American Meteorological Society. 91, 727
+
+National Park Service. 2025. Outdoor Lighting Principles. https://www.nps.gov/subjects/nightskies/outdoor-lighting-principles.htm.
 
 Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Paranal. Astronomy and Astrophysics. 481, 575
 :::
