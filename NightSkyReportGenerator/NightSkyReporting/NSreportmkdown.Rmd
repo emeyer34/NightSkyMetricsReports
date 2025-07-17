@@ -436,7 +436,7 @@ Figure 1. Geographic location of the park. `r (park)` is located near  the. In g
 :::{custom-style="sr Normal"}
 # Methods
 ## Imaging the Night Sky
-The NPS developed the camera system and the observing method to collect high-resolution images of the night sky from horizon to horizon (Duriscoe et al., 2007). The NPS camera system is composed of a commercial Nikon lens, a V-band filter, and a research-grade, monochromatic charge-coupled device (CCD). The filter only lets visible light pass through, allowing the detected signal to closely represent what human eyes can see based on our spectral sensitivity. Because each image has limited field of view, a set of images needs to be taken to cover the entire sky. A robotic mount is utilized to automatically position the camera for each image. Each image set takes up to 40 minutes to complete, depending on the specific system used and the exposure time. To minimize the amount of sun and moon light, data are collected when the sun is more than 18$^\circ$ below the horizon, and when the moon also is below the horizon. The weather conditions required for data
+The NPS developed the camera system and the observing method to collect high-resolution images of the night sky from horizon to horizon (Duriscoe et al., 2007). The NPS camera system is composed of a commercial Nikon lens, a V-band filter, and a research-grade, monochromatic charge-coupled device (CCD). The filter only lets visible light pass through, allowing the detected signal to closely represent what human eyes can see based on our spectral sensitivity. Because each image has limited field of view, a set of images must be taken to cover the entire sky. A robotic mount is utilized to automatically position the camera for each image. Each image set takes up to 40 minutes to complete, depending on the specific system used and the exposure time. To minimize the amount of sun and moon light, data are collected when the sun is more than 18$^\circ$ below the horizon, and when the moon also is below the horizon. The weather conditions required for data
 collection are clear nights with almost no cloud cover. 
 
 Figure 2 shows a typical NPS Night Skies camera system used from 2010 onward. This camera system captures a composite image of the night sky by creating a mosaic from 45 images of portions of the sky, with each portion spanning a square 24$^\circ$ by 24$^\circ$. Depending on the sky brightness at the observing site, the exposure time is usually set to be somewhere between 8 to 12 seconds for each image. Each resulting image set will yield a 40-million-pixel image mosaic covering the entire night sky and 6$^\circ$ below the horizon.
@@ -608,7 +608,7 @@ lights for our model input. The Simplified All-sky Light pollution Ratio (SALR) 
 the Results chapter.
 
 # Results
-The ground-based observations yield the calibrated panoramic images of the night sky. Figures 3 and 4 show examples of the image products associated with each data set (`r (soi)`; `r (soidate)`). In Appendix A: Observation Notes and Panoramic Images, we provide links to the reference images for each night, both observed and artificial skyglow. We use magnitude per square arcsecond (mag/arcsec^2^) for measuring the sky surface brightness. Magnitude (mag or mags) is a standard unit for measuring the brightness of astronomical objects, and it is in inverted logarithmic scale. Under clear moonless conditions, a sky surface brightness of 22 mag/arcsec^2^ would be considered pristine, and a sky surface brightness of < 20 mag/arcsec^2^ would be considered greatly deviated from the natural condition. The warmer colors in these images represent brighter skies. Figure 3 shows the observed night sky, which contains light from both natural and artificial sources. Purple and dark blue colors indicate an unpolluted sky, and the Milky Way under the natural condition appears green in this color scheme. Figure 4 shows only the light from artificial sources. Light domes along the horizon from the nearby area are more apparent in the second image.
+The ground-based observations yield the calibrated panoramic images of the night sky. Figures 3 and 4 show examples of the image products associated with each data set (`r (soi)`; `r (soidate)`). In Appendix A: Observation Notes and Panoramic Images, we provide links to the reference images for each night, both observed and artificial skyglow. We use magnitude per square arcsecond (mag/arcsec^2^) for measuring the sky surface brightness. Magnitude (mag or mags) is a standard unit for measuring the brightness of astronomical objects, and it is on an inverted logarithmic scale. Under clear moonless conditions, a sky surface brightness of 22 mag/arcsec^2^ would be considered pristine, and a sky surface brightness of < 20 mag/arcsec^2^ would be considered greatly deviated from the natural condition. The warmer colors in these images represent brighter skies. Figure 3 shows the observed night sky, which contains light from both natural and artificial sources. Purple and dark blue colors indicate an unpolluted sky, and the Milky Way under the natural condition appears green in this color scheme. Figure 4 shows only the light from artificial sources. Light domes along the horizon from the nearby area are more apparent in the second image.
 
 In the image, the largest and brightest light dome, or cluster of light domes, is from **[Enter city or cities]**. The light dome from **[enter more observations beyond this point]**. 
 
@@ -992,7 +992,7 @@ The direct measurement uncertainties are about a few percent, and the uncertaint
 Glare is bright and uncomfortable light shining from the source directly to the observer. In general, common glare sources include outdoor lights from cities and developments, nearby luminaires, and car lights. Even at distances of several miles, glare can significantly degrade the view of the night sky and impair an observer’s night adapted vision. **~Our images show that along the north and northeast horizon at Gallo Cuesta, several drilling operation lights and gas flares created direct glare. Local glare sources affecting Chaco Culture NHP include exterior lights on administrative and public facilities, gas flaring, and temporary unshielded lighting such as drilling rigs.**
 
 ## Trend Analysis Limitations
-We do not determine whether there is any long-term change of skyglow brightness in our report. Our ground-based observations are limited by the sporadic and small number of sampling points in time. In addition, because each observation was taken under slightly different atmosphere conditions, we cannot compare the measurements directly. These measurements, however, do accurately reflect the sky quality at those specific points of time. For the satellite data, there is currently a large uncertainty associated with the measurements. Ideally, the monthly VIIRS day/night band composites could offer a great tool for determining the long-term trend. However, the measured upward radiance shows a large variation from month to month. This variation is likely an artifact rather than the actual lighting level change. Before this variation is well understood, we cannot use the satellite data to identify the trend.
+We do not determine whether there is any long-term change of skyglow brightness in our report. Our ground-based observations are limited by the sporadic and small number of sampling points in time. In addition, because each observation was taken under slightly different atmosphere conditions, we cannot compare the measurements directly. These measurements, however, do accurately reflect the sky quality at those specific points of time. For the satellite data, there is currently a large uncertainty associated with the measurements. Ideally, the monthly VIIRS day/night band composites could offer a great tool for determining the long-term trend. However, the measured upward radiance shows a large variation from month to month. This variation is likely an artifact rather than the actual lighting level change. Before this variation is well understood, we cannot use the satellite data to assess long-term trends.
 
 # Conclusions
 Overall, the night sky conditions at `r (pcode)` are **~very good**. **~The measured sky brightness averaged over the whole sky is only slightly brighter than the natural conditions, allowing wildlife and park visitors to experience near natural darkness at night. From many locations within the park, visitors can find places free of direct glare that allow for dark adaptation under an almost natural sky. During clear and dark nights, visitors will have an opportunity to see the Milky Way (nearly horizon to horizon), complete constellations, deep sky objects, and fainter natural sources of light such as the zodiacal light and airglow.** Additionally, night skies were visually classified as `r (bortcat)`, based on the visibility of astronomical objects. Finally, the NELM is is approaching `r (nelmcatdesc)`.
@@ -1010,7 +1010,7 @@ Practicing sustainable outdoor lighting within the park and with the neighboring
   * light only if needed, light only when needed;
   * light only where it is needed, use warmer colored light;
   * use the minimum amount of light needed; and
-  * recessed and fully shielded fixtures. 
+  * use recessed and fully shielded fixtures. 
   
 Moreover, visitors and staff can be encouraged to follow Leave No Trace Dark Sky and Artificial Lighting Guidelines, adapting practices such as using red-colored low-lumen headlamps (Leave No Trace 2024). Partnering with gateway communities can further reduce light pollution, both locally and regionally. Reducing light pollution improves the quality of night sky viewing. Ultimately, improving night sky quality can result in increased visitor spending in gateway communities. Preserving the natural night sky really requires a joint effort and can be mutually beneficial to all parties.
 :::
@@ -1018,33 +1018,33 @@ Moreover, visitors and staff can be encouraged to follow Leave No Trace Dark Sky
 
 # Bibliography
 :::{custom-style="sr Literature cited"}
-Baugh, K., F.-C. Hsu, C. D. Elvidge, and M. Zhizhin. 2013. Nighttime lights compositing using the VIIRS day-night band: Preliminary results. Proceedings of the Asia-Pacific Advanced Network. 35, 70
+Baugh, K., F.-C. Hsu, C. D. Elvidge, and M. Zhizhin. 2013. Nighttime lights compositing using the VIIRS day-night band: Preliminary results. Proceedings of the Asia-Pacific Advanced Network. 35:70-86
 
-Bortle, J. E. 2001. Introducing the Bortle Dark-Sky Scale. Sky and Telescope. 101
+Bortle, J. E. 2001. Introducing the Bortle Dark-Sky Scale. Sky and Telescope. 161:5-6
 
-Duriscoe, D. M. 2013. Measuring Anthropogenic Sky Glow Using a Natural Sky Brightness Model. Publications of the Astronomical Society of the Pacific. 125, 1370
+Duriscoe, D. M. 2013. Measuring Anthropogenic Sky Glow Using a Natural Sky Brightness Model. Publications of the Astronomical Society of the Pacific. 125:1370-1382
 
-Duriscoe, D. M. 2016. Photometric indicators of visual night sky quality derived from all-sky brightness maps. Journal of Quantitative Spectroscopy and Radiative Transfer. 181, 33
+Duriscoe, D. M. 2016. Photometric indicators of visual night sky quality derived from all-sky brightness maps. Journal of Quantitative Spectroscopy and Radiative Transfer. 181:33-45
 
-Duriscoe, D. M., S. J. Anderson,  C. B. Luginbuhl, K.E., and Baugh. 2018. A simplified model of all-sky artificial sky glow derived from VIIRS Day/Night band data. Journal of Quantitative Spectroscopy and Radiative Transfer. 214, 133
+Duriscoe, D. M., S. J. Anderson,  C. B. Luginbuhl, K.E., and Baugh. 2018. A simplified model of all-sky artificial sky glow derived from VIIRS Day/Night band data. Journal of Quantitative Spectroscopy and Radiative Transfer. 214:133-145
 
-Duriscoe, D. M., C. B. Luginbuhl, and C. A. Moore. 2007. Measuring Night-Sky Brightness with a Wide-Field CCD Camera. Publications of the Astronomical Society of the Pacific. 119, 192
+Duriscoe, D. M., C. B. Luginbuhl, and C. A. Moore. 2007. Measuring Night-Sky Brightness with a Wide-Field CCD Camera. Publications of the Astronomical Society of the Pacific. 119:192
 
 Falchi, F., P. Cinzano, D. Duriscoe, et al. 2016. The new world atlas of artificial night sky brightness. Science Advances. 2, e1600377
 
-Hillger, D., T. Kopp, T. Lee, et al. 2013. First-Light Imagery from Suomi NPP VIIRS. Bulletin of the American Meteorological Society. 94, 1019
+Hillger, D., T. Kopp, T. Lee, et al. 2013. First-Light Imagery from Suomi NPP VIIRS. Bulletin of the American Meteorological Society. 94:1019-1029
 
 Kyba, C. C. M., T. Kuester, A. Sánchez de Miguel, et al. 2017. Artificially lit surface of Earth at night increasing in radiance and extent. Science Advances. 3. doi:10.1126/sciadv.1701528
 
-Lee, S., K. Chiang, X. Xiong, C. Sun, and S. Anderson. 2014. The S-NPP VIIRS Day-Night Band on-orbit calibration/characterization and current state of SDR products. Remote Sensing. 6, 12427
+Lee, S., K. Chiang, X. Xiong, C. Sun, and S. Anderson. 2014. The S-NPP VIIRS Day-Night Band on-orbit calibration/characterization and current state of SDR products. Remote Sensing. 6:12427-12446
 
-Lee, T. E., S. D.  Miller, F. J. Turk, et al. 2006. The NPOESS VIIRS Day/Night Visible Sensor. Bulletin of the American Meteorological Society. 87, 191
+Lee, T. E., S. D.  Miller, F. J. Turk, et al. 2006. The NPOESS VIIRS Day/Night Visible Sensor. Bulletin of the American Meteorological Society. 87:191-200
 
-Lee, T. F., C. S. Nelson, P. Dills, et al. 2010. NPOESS: Next-Generation Operational Global Earth Observations. Bulletin of the American Meteorological Society. 91, 727
+Lee, T. F., C. S. Nelson, P. Dills, et al. 2010. NPOESS: Next-Generation Operational Global Earth Observations. Bulletin of the American Meteorological Society. 91:727-740
 
 National Park Service. 2025. Outdoor Lighting Principles. https://www.nps.gov/subjects/nightskies/outdoor-lighting-principles.htm.
 
-Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Paranal. Astronomy and Astrophysics. 481, 575
+Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Paranal. Astronomy and Astrophysics. 481:575-591
 :::
 \newpage
 # Appendix A: Observation Notes and Panoramic Images
