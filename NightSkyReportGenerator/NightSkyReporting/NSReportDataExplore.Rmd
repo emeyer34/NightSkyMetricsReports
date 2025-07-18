@@ -274,6 +274,15 @@ for (i in 1:length(appenda$DNIGHT)) {
 }
 
 ```
+## Past Report Examples
+
+```{r nightreports, echo=FALSE,results ='asis'}
+
+cat(paste("Dinosaur National Monument Example: https://irma.nps.gov/DataStore/DownloadFile/740932"))
+cat("  \n")
+cat(paste("NSNSD Night Sky Metrics Reports Data Collection Series: https://irma.nps.gov/DataStore/Collection/Profile/9562"))
+```
+
 
 
 

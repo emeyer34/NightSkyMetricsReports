@@ -1,4 +1,31 @@
 # NPS Night Sky Metrics Report Generator
+## Project Background
+The Natural Sounds and Night Skies Division (NSNSD) collaborates with parks and partners to advance scientific understanding and inspire public appreciation of nighttime resources. NSNSD supports the study, preservation, and restoration of night skies and the nocturnal environment throughout the national park system by collecting data on night sky quality, conducting lighting inventories, assisting parks with star parties, and researching visitors’ perceptions of lighting.<br>
+
+This project aims to provide parks with published reports on night sky quality. Utilizing data collected in parks, the final product is a published report that parks can use for compliance, resource assessments, external reviews, and dark sky certification applications.<br>
+
+The intended audience of this repository is NSNSD staff who will provide published reports to parks on night sky quality. The five-step process will result in a fully formatted report following the reporting guidelines of the NPS Science Report Series. The MS Word document output is approximately 95% automated. The report author will need to update text that is bold and noted by the "~" character. Other park-specific descriptions will also be required.<br>
+
+The NPS Science Report Series must:<br>
+
+1. Be peer-reviewed before submission.<br>
+2. Adhere to rigorous format requirements to ensure consistent presentation, compliance with NPS graphic identity standards, correct exporting, and application of Section 508 of the Rehabilitation Act.<br>
+
+Users of this project will not need to manually adjust the report to the report template, as the output will already be formatted.<br>
+
+Submit your manuscript here after peer and park review (internal):https://doimspp.sharepoint.com/sites/nps-NR-Pubs/SitePages/Home.aspx <br>
+
+NPS night sky data collection site: 
+Dinosaur National Monument Example: https://irma.nps.gov/DataStore/DownloadFile/740932"<br>
+NSNSD Night Sky Metrics Reports Data Collection Series: https://irma.nps.gov/DataStore/Collection/Profile/9562"<br>
+
+
+
+
+
+
+
+# Report Generation Process
 ## Step 1. Installation Guide
 1.	Install RStudio (Software Center)
 2.	Install R Statistical Software (Software Center)

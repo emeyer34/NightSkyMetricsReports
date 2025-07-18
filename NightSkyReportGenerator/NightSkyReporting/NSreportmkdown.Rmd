@@ -95,9 +95,9 @@ censusyear <- params$censusyear
 # Temp parameters for troubleshooting specific data issues for parks or sites
 # Only need to enter values noted with asterisk *
 #park       <- "National Park"
-#pcode      <- "DINO" # *
-#soi        <- "Harpers Corner Road" # *
-#soidset    <- "DINO120614" # *
+#pcode      <- "ROMO" # *
+#soi        <- "Rock Cut Geo Marker" # *
+#soidset    <- "ROMO160813" # *
 #soidate    <- "Jan 1, 1111" 
 #sdist      <- "300" 
 #viirsyear  <- "2024" 
@@ -189,10 +189,18 @@ edate <- format(as.Date(edate), "%B %d, %Y")
 ldate <- max(repdata$Date)
 ldate <- format(as.Date(ldate), "%B %d, %Y")
 # Average zenith luminance and visibility text descriptions
-avebrightvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) == 1, "a single measurement", "the average"))
+# Determine text description based on the count of values
+zenith_count <- sum(!is.na(repdata$ZENITH_LUM_MSA))
+avebrightvar <- ifelse(zenith_count == 0, "**~not measured**", 
+                ifelse(zenith_count == 1, "from a single measurement", 
+                "average"))
+
 avebright <- format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA, na.rm = TRUE)), 2), nsmall = 2)
 
-avestarvisvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) == 1, "a single measurement", "the average"))
+stars_count <- sum(!is.na(repdata$VISSTARS_PCT))
+avestarvisvar <- ifelse(stars_count == 0, "**~not measured**", 
+                ifelse(stars_count == 1, "from a single measurement", 
+                "on average"))
 avestarvis <- format(round(mean(as.numeric(repdata$VISSTARS_PCT, na.rm = TRUE)),0),nsmall = 0)
 
 # Average and extreme ALR values
@@ -204,21 +212,31 @@ aveALRdec <- mean(repdata$ALR_POS, na.rm = TRUE)
 # Classify ALR based on Duriscoe 2018 standards, but these terms are a translation of that paper and first appeared in the Chaco night sky report 
 alrcat <- ifelse(aveALRdec <= 0.3, "excellent", ifelse(aveALRdec <= 2.0, "degraded", "not readily visible"))
 
-# Average SQM
-avesqmvar <- ifelse(nrow(repdata) == 0, "not measured", ifelse(nrow(repdata) == 1, "a single measurement", "average"))
-####
+
+###SQM
+# Step 1: Replace blank strings with NA in SQM
+repdata$SQM[repdata$SQM == " "] <- NA
+
+# Step 2: Count of non-NA values in SQM
+sqm_count <- sum(!is.na(repdata$SQM))
+
+# Average SQM description
+avesqmvar <- ifelse(sqm_count == 0, "were not taken during this study **~[Delete following text and clarify no SQM taken]**", 
+             ifelse(sqm_count == 1, "included a single measurement of", 
+             "averaged"))
+
 # Check the current values in SQM
 print(unique(repdata$SQM))
-# AVE sqm; step by step to remove NA and still average
-# Step 1: Replace blank strings with NA
-repdata$SQM[repdata$SQM == ""] <- NA
-# Step 2: Convert to numeric, forcing non-numeric to become NA
+
+# Step 3: Convert SQM to numeric, forcing non-numeric to become NA
 repdata$SQM <- as.numeric(as.character(repdata$SQM))
-# Step 3: Calculate the mean while excluding NA values
+
+# Step 4: Calculate the mean while excluding NA values
 avesqm <- mean(repdata$SQM, na.rm = TRUE)
-# Step 4: Format the output
+
+# Step 5: Format the output to two decimal places
 avesqm <- format(round(avesqm, 2), nsmall = 2)
-# End avesqm calc
+
 
 # horizontal illuminance
 avehor<- format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE),2), nsmall = 2)
@@ -228,7 +246,18 @@ avehor<- format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE),2), nsmall = 2)
 sumdset <- sum(repdata$DSET, na.rm = TRUE)
 
 ### Data Wrangling: Bortle Class Descriptions Dataset
-bortle <- mfv(repdata$BORTLE)
+# Convert to numeric, suppress warnings about NAs introduced by coercion
+repdata$BORTLE <- as.numeric(as.character(repdata$BORTLE))
+
+# Calculate mode
+bortle <- mfv(repdata$BORTLE, na_rm = TRUE)
+
+# If there's a tie, return the average rounded to the nearest whole number
+if (length(bortle) > 1) {
+  bortle <- round(mean(repdata$BORTLE, na.rm = TRUE))
+}
+
+
 bortletable <- read_excel(".//Reference//BortleClass.xlsx")
 bortletable <- bortletable %>%
   filter(class == bortle)
@@ -238,8 +267,14 @@ bortcat <- bortletable$category
 bortdesc <- bortletable$description  
 
 ### Data Wrangling: NELM Descriptions Dataset
-avenelmvar <- ifelse(n_distinct(repdata$ZLM) == 0, "not measured", ifelse(n_distinct(repdata$ZLM) == 1, "a single measurement", "average"))
 repdata$ZLM <- as.numeric(as.character(repdata$ZLM))
+
+nelm_count <- sum(!is.na(repdata$ZLM))
+avenelmvar <- ifelse(nelm_count == 0, "**~[NELM was not taken so delete this or clarify]**", 
+                ifelse(nelm_count == 1, "single measurement taken of", 
+                "average"))
+
+#repdata$ZLM <- as.numeric(as.character(repdata$ZLM))
 avenelm <- mean(repdata$ZLM, na.rm = TRUE)
 
 # Import and filter NELM table
@@ -315,7 +350,7 @@ This report characterizes night sky conditions in `r (pcat)` using measurements 
 
 The sky overhead remains **~[insert manual description]** with an `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^. We estimate more than `r (avestarvis)`% naked eye stars remained visible under the measured sky brightness, providing a **~[insert manual description]** opportunity to view the natural night sky from the park during a cloudless moonless night. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions on average.
 
-In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, indicating the zenith is darker than what we can accurately measure with a SQM.  The main impacts on `r (pcode)`’s night sky quality, ordered by predicted brightness of light domes, were from
+In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` Under this Bortle condition, **~[insert description, ex. the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.]** The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, **~[example text: indicating the zenith is darker than what we can accurately measure with a SQM.]**  The main impacts on `r (pcode)`’s night sky quality, ordered by predicted brightness of light domes, were from
 ```{r clist1,echo=FALSE, message=FALSE,results = 'asis'}
 # Print names from lightsource$NAME with a comma separator
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
@@ -430,7 +465,7 @@ NPS/NIGHT SKIES PROGRAM
 ::: 
 
 :::{custom-style="sr Alternate text"}
-Figure 1. Geographic location of the park. `r (park)` is located near  the. In general, light sources within 300 km could be visible and have the potential to brighten the night sky. The park boundary is outlined in dark green with the park area shaded in a lighter green. **~Enter observations near boundary**. There is also a smaller inset map that displays the location of the study area within the greater **~Enter observations of the greater map inset region**, a red square appears around the study area. 
+Figure 1. Geographic location of the park. `r (park)` is located near  the **~Enter observations of the greater map inset region**. In general, light sources within 300 km could be visible and have the potential to brighten the night sky. The park boundary is outlined in dark green with the park area shaded in a lighter green. **~Enter observations near boundary**. There is also a smaller inset map that displays the location of the study area within the greater **~Enter observations of the greater map inset region**, a red square appears around the study area. Study sites are depicted by black star markers.
 :::
 
 :::{custom-style="sr Normal"}
@@ -466,7 +501,7 @@ Between `r (edate)` to `r (ldate)`, NPS collected `r (daynum)` nights of ground-
 :::
 
 :::{custom-style="sr Table caption"}
-Table 1. Ground-based data collection events at `r (park)`. ‘Sets’ refers to the number of data sets taken that night; each set yields a panoramic image of the sky.
+Table 1. Ground-based data collection events at `r (park)`. ‘Sets’ refers to the number of data sets taken that night; each set yields a panoramic image of the sky. **~[Clean up "Observers" clumn. Add periods after initials and delete semi colins if only one observer. (Then delete this hint)]**
 :::
 
 <br>
@@ -819,7 +854,7 @@ ft4
 
 Illuminance is the amount of visible light incident on a unit surface area. It is more sensitive to light striking closer to perpendicular to the surface. Specifically, the impact from a light source is weighted by the cosine of its angle of incidence. For example, the weighting factors for sources incident perpendicular to the surface, 60 degrees away, and 90 degrees away (parallel to the surface) are 1, 0.5, and 0, respectively.
 
-The horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From the `r (daynum)` observation nights in `r (pcode)`, the average horizontal illuminance of `r (avehor)` **~[NOTE: summarize from Table 4 here:]is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent the natural illumination on the plane.**
+The horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From the `r (daynum)` observation nights in `r (pcode)`, the average horizontal illuminance of `r (avehor)` **~[NOTE: summarize from Table 4 here:is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent the natural illumination on the plane.]**
 
 
 :::
@@ -843,9 +878,9 @@ zenskyb <- round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits 
 
 The vertical illuminance describes the light striking a vertical surface. The vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From the `r (daynum)` observation nights in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx in all observations. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low, providing a refuge for crepuscular and nocturnal species in the park.**
 
-The zenith sky brightness is measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with an average `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
+The zenith sky brightness is measured within a 1-square degree area directly overhead. The zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
 
-The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate on `r (avestarvisvar)`, `r (avestarvis)`% of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
+The percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. From the `r (daynum)` observation nights in `r (pcode)`, we estimate `r (avestarvisvar)`, `r (avestarvis)`% of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
 
 All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate degraded sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible (categories modified from Duriscoe et al. 2018). The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
 
@@ -921,7 +956,7 @@ ft5
 
 :::
 
-Indicators derived from these ground-based measurements indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. These indicators are supported by visual observations and assessments at the site. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`). A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` **~add descriptin here summarizing Bortle class, ex. Under this Bortle condition, the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.**
+Indicators derived from these ground-based measurements indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. These indicators are supported by visual observations and assessments at the site. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`). A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` **~add descriptin here summarizing Bortle class, ex. Under this Bortle condition, the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.** 
 
 Naked eye limiting magnitude (NELM) is the magnitude of the faintest star we can see in the sky with naked eyes. As the night sky brightness increases, the limiting magnitude will degrade to a lower value. The NELM will also depend on the observer and will increase with the eye’s dark adaptation. A NELM of 6.6 is considered near pristine under average conditions, while 7.0 is achievable under good seeing conditions and with proper dark adaptation of the eye. A NELM of 7.4 is excellent, just about the faintest attainable. A number lower than 6.3 usually indicates degraded sky quality. The limiting magnitude is also a common metric used by citizen scientists to assess the sky brightness globally. In `r (pcode)`, the `r (avenelmvar)` limiting magnitude is `r (avenelm)`, approaching `r (nelmcatdesc)`.
 
@@ -1005,7 +1040,7 @@ cat(paste(lightsource$Place, collapse = ", "), "\n")
 ```
 While impacts from light domes and distant glare sources are **~moderate to low during clear nights, an increase in atmospheric aerosols can significantly alter sky brightness by amplifying the impacts of existing artificial light and further degrading the night sky quality.**
 
-Practicing sustainable outdoor lighting within the park and with the neighboring communities is a key to reducing light pollution. Sustainable outdoor lighting observes the following principles: 
+Practicing sustainable outdoor lighting within the park and with the neighboring communities is a key to reducing light pollution. Sustainable outdoor lighting observes the following principles (NPS 2025): 
 
   * light only if needed, light only when needed;
   * light only where it is needed, use warmer colored light;
