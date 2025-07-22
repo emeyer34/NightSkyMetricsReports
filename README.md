@@ -13,7 +13,15 @@ The NPS Science Report Series must:<br>
 
 Users of this project will not need to manually adjust the report to the report template, as the output will already be formatted.<br>
 
-Submit your manuscript here after peer and park review (internal):https://doimspp.sharepoint.com/sites/nps-NR-Pubs/SitePages/Home.aspx <br>
+
+Additional tips: <br>
+1. Place first draft in Teams: NSNSD>Planning>Night Sky Reports (create park folder) <br>
+2. Use the review log managed by Li-Wei when you are ready for internal review (internal; https://doimspp.sharepoint.com/:x:/r/sites/nsnsdallstaff/_layouts/15/Doc.aspx?sourcedoc=%7B1E77E498-5CF3-4B6D-9823-1D0DA8BE9DA6%7D&file=NightSkiesNRR_review.xlsx&action=default&mobileredirect=true&wdLOR=cDE2BEA02-49FE-4950-8547-832828F1FF04) <br>
+3. Add template specific comments to the running log (internal; https://doimspp.sharepoint.com/:x:/r/sites/nsnsdallstaff/_layouts/15/Doc.aspx?sourcedoc=%7B1D745879-5C41-48FD-A74B-2483F8994405%7D&file=Night%20Sky%20Report%20Template%20Updates.xlsx&action=default&mobileredirect=true&DefaultItemOpen=1&wdLOR=cFF6A13AC-5FBE-4D9A-B325-96BE56D0433C )<br>
+4. Advise park, internal, and admin reviewers to review on the Desktop MS Word app instead of the web app. The web app introduces errors that do not carry through on the desktop app.<br>
+5. Submit your manuscript here after peer and park review (internal):https://doimspp.sharepoint.com/sites/nps-NR-Pubs/SitePages/Home.aspx <br>
+
+
 
 NPS night sky data collection site: 
 Dinosaur National Monument Example: https://irma.nps.gov/DataStore/DownloadFile/740932"<br>
