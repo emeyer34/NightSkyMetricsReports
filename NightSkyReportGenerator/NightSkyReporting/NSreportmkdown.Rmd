@@ -1,6 +1,6 @@
 ---
 output: 
-  word_document:
+  officedown::rdocx_document:
     reference_docx: template.docx
 params:
   fullname: 
@@ -52,35 +52,203 @@ params:
 ---    
 
 ```{r packages, include=FALSE}
-# Set global chunk options
 knitr::opts_chunk$set(echo = TRUE)
 
-# Define the list of required packages
 packages <- c("EnvStats", "reshape2", "ggplot2", "ggthemes", "pander", "plyr", 
               "lubridate", "readxl", "tcltk", "svDialogs", "tcltk2", 
               "tidyverse", "vtable", "data.table", "ggpubr", "knitr", 
               "readr", "sjmisc", "janitor", "dplyr", "DT", "tmap", 
               "scales", "leaflet", "shiny", "rsconnect", "english", 
               "kableExtra", "statip", "magrittr", "flextable", 
-              "officedown", "officer", "forstringr", "geojsonsf", "sf","sass")
+              "officedown", "officer", "forstringr", "geojsonsf", "sf","sass",
+              "png", "jpeg")
 
-# Load or install missing packages
-package.check <- lapply(packages, function(pkg) {
-  if (!require(pkg, character.only = TRUE)) {
-    install.packages(pkg, dependencies = TRUE)
-    library(pkg, character.only = TRUE)
+invisible(lapply(packages, function(pkg) {
+  if (!suppressWarnings(suppressMessages(require(pkg, character.only = TRUE, quietly = TRUE)))) {
+    message("Package '", pkg, "' not found -- attempting to install it...")
+    tryCatch({
+      install.packages(pkg, dependencies = TRUE)
+      library(pkg, character.only = TRUE)
+    }, error = function(e) {
+      stop("Could not install/load required package '", pkg, "'.\n",
+           "Original error: ", conditionMessage(e),
+           "\nPlease install it manually and re-knit.", call. = FALSE)
+    })
   }
-})
+}))
+
+still_missing <- packages[!vapply(packages, function(x) requireNamespace(x, quietly = TRUE), logical(1))]
+if (length(still_missing) > 0) {
+  stop("The following required packages are still not available: ",
+       paste(still_missing, collapse = ", "),
+       ". Please install them manually before knitting.", call. = FALSE)
+}
+
+# --- Helper functions used throughout the report to fail gracefully ---
+
+# Downloads a remote image to a local temp file (Word/pandoc needs a local
+# path to embed an image reliably). Returns NULL + a warning if it fails,
+# instead of a raw, unhelpful pandoc/HTTP error at knit time.
+safe_download_image <- function(url, label = "image") {
+  ext <- tools::file_ext(url)
+  if (ext == "" || is.na(ext)) ext <- "png"
+  tmp <- tempfile(fileext = paste0(".", ext))
+  ok <- tryCatch({
+    utils::download.file(url, tmp, mode = "wb", quiet = TRUE)
+    TRUE
+  }, error = function(e) {
+    warning("Could not download ", label, " from: ", url,
+            "\nOriginal error: ", conditionMessage(e), call. = FALSE)
+    FALSE
+  }, warning = function(w) {
+    warning("Could not download ", label, " from: ", url,
+            "\nOriginal warning: ", conditionMessage(w), call. = FALSE)
+    FALSE
+  })
+  if (!isTRUE(ok) || !file.exists(tmp) || file.info(tmp)$size == 0) {
+    return(NULL)
+  }
+  tmp
+}
+
+# Checks a local figure path exists before handing it to include_graphics()
+safe_local_image <- function(path, label = "image") {
+  if (!file.exists(path)) {
+    warning(label, " not found at expected path: ", path,
+            ". This figure will be skipped -- check the Figures/<park code> folder.",
+            call. = FALSE)
+    return(NULL)
+  }
+  path
+}
+
+# Stops with a clear message naming the exact missing file, instead of a
+# generic "cannot open file" error from read_excel()
+require_file <- function(path, what) {
+  if (!file.exists(path)) {
+    stop("Required file for ", what, " not found at: ", path,
+         ". Check that the Parks/Reference folder structure matches the park code.",
+         call. = FALSE)
+  }
+  path
+}
+
+# Wraps read_excel with a clearer error if the file is present but corrupt/unreadable
+safe_read_excel <- function(path, what) {
+  tryCatch(
+    read_excel(path),
+    error = function(e) {
+      stop("Could not read the Excel file for ", what, " at: ", path,
+           "\nOriginal error: ", conditionMessage(e), call. = FALSE)
+    }
+  )
+}
+
+# --- Image sizing/centering for Word output ---
+#
+# officedown's docx image embedding does NOT read a raster image's actual
+# pixel dimensions the way pandoc does for HTML/PDF. If you only set
+# out.width, it computes the height from the chunk's fig.height option
+# (a fixed default), independent of the image's real proportions -- which
+# stretches/squishes every image that isn't that exact aspect ratio.
+# To avoid this, we read each image's true pixel dimensions ourselves and
+# explicitly size + center it via officer's external_img()/fpar(), bypassing
+# knitr's fig.* sizing logic entirely.
+
+# NOTE: adjust this to match your template.docx's actual page width minus
+# margins (Letter with 1in margins is 6.5in; verify against your template).
+content_width_in <- 6.5
+
+# Reads pixel width/height directly from the file so we can compute a correct
+# aspect ratio. Returns NULL (with a warning) if the format isn't supported
+# or the file can't be parsed, so callers can fall back gracefully instead
+# of erroring the whole render.
+get_image_dims <- function(path, label = "image") {
+  # Try readers by actual content, not by trusting the file extension --
+  # a mismatched extension (e.g. JPEG data saved with a .png filename) made
+  # readPNG() fail silently and fall back to a generic 4:3 ratio, which is
+  # what stretched the portrait skycam image out widthwise.
+  dims <- tryCatch({
+    d <- dim(png::readPNG(path))
+    list(width = d[2], height = d[1])
+  }, error = function(e) NULL)
+
+  if (is.null(dims)) {
+    dims <- tryCatch({
+      d <- dim(jpeg::readJPEG(path))
+      list(width = d[2], height = d[1])
+    }, error = function(e) NULL)
+  }
+
+  if (is.null(dims)) {
+    warning("Could not read pixel dimensions for ", label,
+            " (unsupported format, or the file's actual content doesn't match ",
+            "either PNG or JPEG regardless of its extension: ", path, "). ",
+            "A default 4:3 aspect ratio will be used, which may distort this image.",
+            call. = FALSE)
+  }
+  dims
+}
+
+# Builds a centered, aspect-ratio-correct image block for officedown/Word.
+# `path` should be a local file path (see safe_download_image/safe_local_image).
+# Pass NULL for path to get a clean centered placeholder instead of failing.
+insert_centered_image <- function(path, width_in = content_width_in, label = "image") {
+  if (is.null(path)) {
+    return(block_list(
+      fpar(paste0("[", label, " could not be loaded]"), fp_p = fp_par(text.align = "center"))
+    ))
+  }
+
+  dims <- get_image_dims(path, label)
+  ar <- if (!is.null(dims) && dims$height > 0) dims$width / dims$height else 4 / 3
+  height_in <- width_in / ar
+
+  block_list(
+    fpar(
+      external_img(src = path, width = width_in, height = height_in),
+      fp_p = fp_par(text.align = "center")
+    )
+  )
+}
+
+# Replicates the visual appearance of the "sr Table header" / "sr Table cell"
+# Word paragraph styles directly on flextable objects. flextable cannot
+# reference a named Word style by name (there is no such argument anywhere
+# in flextable/officer) -- the only way to visually match a named style is to
+# reproduce its font, size, weight, color, and spacing directly.
+#
+# Assumptions carried over from the style spec provided:
+#   - "Font color: Text 1" is assumed to be black, since Text 1 is black in
+#     Office's default theme. If your template.docx uses a custom theme where
+#     Text 1 is a different color, change the `color = "black"` line below.
+#   - Word's "Widow/Orphan control" is a paragraph pagination setting with no
+#     equivalent exposed in officer/flextable. It only affects whether a
+#     multi-line cell's first/last line can be isolated across a *page
+#     break* -- it has no visible effect otherwise, so it's safely omitted.
+#   - "Space before/after: 1pt" is approximated using cell padding, since
+#     flextable's padding is the closest analog to Word's paragraph spacing
+#     at the cell level.
+#   - Column-specific center-alignment for numeric data (already present in
+#     each table below) is preserved rather than forced to "Left" -- that
+#     appears to be an intentional readability choice layered on top of the
+#     base style, not an oversight. Let me know if you want strict left
+#     alignment everywhere instead.
+apply_sr_table_styles <- function(ft) {
+  ft %>%
+    font(fontname = "Arial", part = "all") %>%
+    color(color = "black", part = "all") %>%
+    fontsize(size = 9, part = "all") %>%
+    bold(bold = TRUE, part = "header") %>%
+    bold(bold = FALSE, part = "body") %>%
+    line_spacing(space = 1, part = "header") %>%
+    line_spacing(space = 1.08, part = "body") %>%
+    padding(padding.top = 1, padding.bottom = 1, part = "all")
+}
 ```
-
-
-
-
-
 
 ```{r params store, include=FALSE}
 # Store parameters from the params list
-# temporarily comment out and replace parameters below for troubleshooting
 park       <- params$fullname
 pcode      <- params$alpha_code
 soi        <- params$soi 
@@ -89,8 +257,6 @@ soidate    <- params$soidate
 sdist      <- params$sdist 
 viirsyear  <- params$viirsyear 
 censusyear <- params$censusyear
-
-
 
 # Temp parameters for troubleshooting specific data issues for parks or sites
 # Only need to enter values noted with asterisk *
@@ -103,18 +269,77 @@ censusyear <- params$censusyear
 # viirsyear  <- "2024"
 # censusyear <- "2020"
 
+# --- Validate parameters before running the rest of the report ---
+if (is.null(park) || trimws(park) == "" || trimws(park) == "National Park") {
+  stop("`fullname` parameter is still blank/default. Enter the full park name (e.g. 'Lassen Volcanic National Park').",
+       call. = FALSE)
+}
+
+if (is.null(pcode) || nchar(trimws(pcode)) != 4 || toupper(trimws(pcode)) %in% c("UNIT", "EX. LAVO")) {
+  stop("`alpha_code` parameter must be a real 4-letter park code (e.g. 'LAVO'). Received: '", pcode, "'",
+       call. = FALSE)
+}
+pcode <- toupper(trimws(pcode))
+
+if (is.null(soi) || trimws(soi) == "" || grepl("^ex\\.", trimws(soi), ignore.case = TRUE)) {
+  stop("`soi` parameter is still the placeholder value. Enter the real site of interest name.", call. = FALSE)
+}
+
+if (is.null(soidset) || trimws(soidset) == "" || grepl("^ex\\.", trimws(soidset), ignore.case = TRUE)) {
+  stop("`soidset` parameter is still the placeholder value. Enter the real dataset ID (e.g. 'LAVO070716').",
+       call. = FALSE)
+}
+
+if (is.null(soidate) || trimws(soidate) == "" || toupper(trimws(soidate)) == "MONTH DD, YYYY") {
+  stop("`soidate` parameter is still the placeholder value. Enter the real date (e.g. 'June 13, 2012').",
+       call. = FALSE)
+}
+
+parsed_soidate <- suppressWarnings(as.Date(soidate, format = "%B %d, %Y"))
+if (is.na(parsed_soidate)) {
+  warning("`soidate` ('", soidate, "') doesn't match the expected 'Month DD, YYYY' format ",
+          "(e.g. 'June 13, 2012'). The year extraction later in the report may produce NA.",
+          call. = FALSE)
+}
+
+sdist <- suppressWarnings(as.numeric(sdist))
+if (is.na(sdist)) stop("`sdist` parameter must be numeric.", call. = FALSE)
+
+viirsyear <- suppressWarnings(as.numeric(viirsyear))
+if (is.na(viirsyear)) stop("`viirsyear` parameter must be numeric.", call. = FALSE)
+
+censusyear <- suppressWarnings(as.numeric(censusyear))
+if (is.na(censusyear)) stop("`censusyear` parameter must be numeric.", call. = FALSE)
 ```
 
 
 ```{r datawrangle, include=FALSE}
 
-
-# Create park code variable
 pcat <- paste(park, " (", pcode, ")", sep = "")
 
-# Import full dataset from NPmaps
-data <- geojsonsf::geojson_sf("https://www.nps.gov/subjects/nightskies/nsdmap.geojson")
-# Convert specific columns to numeric
+# --- Import full dataset from NPmaps, with a clear error instead of a raw HTTP failure ---
+data <- tryCatch(
+  geojsonsf::geojson_sf("https://www.nps.gov/subjects/nightskies/nsdmap.geojson"),
+  error = function(e) {
+    stop("Could not download the NPS night sky dataset from nps.gov. ",
+         "Check your internet connection and confirm the URL is still valid.\n",
+         "Original error: ", conditionMessage(e), call. = FALSE)
+  }
+)
+
+if (nrow(data) == 0) {
+  stop("The downloaded night sky dataset came back empty. The source file may be ",
+       "temporarily unavailable or its format may have changed.", call. = FALSE)
+}
+
+if (!"geometry" %in% names(data)) {
+  stop("Expected 'geometry' column was not found in the source dataset -- cannot extract lat/long.",
+       call. = FALSE)
+}
+if (!"DNIGHT" %in% names(data)) {
+  stop("Expected column 'DNIGHT' was not found in the source dataset. ",
+       "The NPS data schema may have changed.", call. = FALSE)
+}
 
 # Extract coordinates
 data$longcoord <- str_sub(data$geometry, 3, -2)
@@ -122,186 +347,234 @@ data$LATITUDE <- as.numeric(sub(".*, ", "", data$longcoord))
 data$LONGITUDE <- as.numeric(sub(", .*", "", data$longcoord))
 data <- as.data.frame(data)
 
+if (any(is.na(data$LATITUDE)) || any(is.na(data$LONGITUDE))) {
+  warning("Some records had coordinates that couldn't be parsed from the geometry field.",
+          call. = FALSE)
+}
+
 # Create park code field for filtering
 data$parkcode <- substr(data$DNIGHT, 1, 4)
 
-### Data Wrangling: NPMapsQuery Dataset
-# Filter report dataset
 repdata <- data %>%
-  filter(parkcode == pcode)%>%
+  filter(parkcode == pcode) %>%
   mutate(Date = as.Date(MID_DATE_LMT, format = "%m/%d/%Y"))
 
-# Convert ALR to numeric and add image fields
+if (nrow(repdata) == 0) {
+  stop("No records were found for park code '", pcode, "'. ",
+       "Confirm this code appears in the first 4 characters of the DNIGHT field.",
+       call. = FALSE)
+}
+
+required_cols <- c("SITE_NAME", "NPS_UNIT", "ELEVATION", "MID_DATE_LMT", "MID_TIME_LMT",
+                    "CAMERA", "DSET", "OBSERVERS", "NARRATIVE", "FULLPATH", "ARTPATH",
+                    "ALR_POS", "ZENITH_LUM_MSA", "VISSTARS_PCT", "HORIZ_MLX", "MAXVERT_MLX",
+                    "BORTLE", "ZLM", "SQM")
+missing_cols <- setdiff(required_cols, names(repdata))
+if (length(missing_cols) > 0) {
+  stop("The following expected columns are missing for park '", pcode, "': ",
+       paste(missing_cols, collapse = ", "), ". The NPS data schema may have changed.",
+       call. = FALSE)
+}
+
+if (any(is.na(repdata$Date))) {
+  warning(sum(is.na(repdata$Date)), " record(s) for park '", pcode,
+          "' had a date that couldn't be parsed from MID_DATE_LMT.", call. = FALSE)
+}
+
 repdata$ALR_POS <- as.numeric(repdata$ALR_POS)
-repdata$FULL_LINK <- paste0("https://www.nps.gov/subjects/nightskies/graphics/", gsub("\\_.*", "_hmrFULL.jpg", repdata$FULLPATH))
-repdata$ART_LINK <- paste0("https://www.nps.gov/subjects/nightskies/graphics/", gsub("\\_.*", "_hmrART.jpg", repdata$ARTPATH))
+
+repdata$FULL_LINK <- ifelse(
+  is.na(repdata$FULLPATH) | trimws(repdata$FULLPATH) == "",
+  NA_character_,
+  paste0("https://www.nps.gov/subjects/nightskies/graphics/", gsub("\\_.*", "_hmrFULL.jpg", repdata$FULLPATH))
+)
+repdata$ART_LINK <- ifelse(
+  is.na(repdata$ARTPATH) | trimws(repdata$ARTPATH) == "",
+  NA_character_,
+  paste0("https://www.nps.gov/subjects/nightskies/graphics/", gsub("\\_.*", "_hmrART.jpg", repdata$ARTPATH))
+)
 
 # Count of sites and survey nights
 sitenum <- n_distinct(repdata$SITE_NAME)
-daynum<-repdata%>%count(DNIGHT)
-daynum<-sum(daynum$n)
-
+daynum <- repdata %>% count(DNIGHT)
+daynum <- sum(daynum$n)
 
 # Date calculations
-edate <- min(repdata$Date)
+edate <- suppressWarnings(min(repdata$Date, na.rm = TRUE))
+ldate <- suppressWarnings(max(repdata$Date, na.rm = TRUE))
+if (is.infinite(edate) || is.infinite(ldate) || is.na(edate) || is.na(ldate)) {
+  stop("Could not determine a valid date range for park '", pcode,
+       "' -- all MID_DATE_LMT values failed to parse.", call. = FALSE)
+}
 edate <- format(as.Date(edate), "%B %d, %Y")
-ldate <- max(repdata$Date)
 ldate <- format(as.Date(ldate), "%B %d, %Y")
-# Average zenith luminance and visibility text descriptions
-# Determine text description based on the count of values
-zenith_count <- sum(!is.na(repdata$ZENITH_LUM_MSA))
-avebrightvar <- ifelse(zenith_count == 0, "**~not measured**", 
-                ifelse(zenith_count == 1, "from a single measurement", 
-                "average"))
 
-avebright <- format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA, na.rm = TRUE)), 2), nsmall = 2)
+# Average zenith luminance and visibility text descriptions
+zenith_count <- sum(!is.na(repdata$ZENITH_LUM_MSA))
+avebrightvar <- ifelse(zenith_count == 0, "**~not measured**",
+                ifelse(zenith_count == 1, "from a single measurement", "average"))
+# NOTE: na.rm belongs on mean(), not as.numeric() -- as.numeric() has no na.rm
+# argument and silently ignores it, so previously a single NA in this column
+# would make the WHOLE average come back as NA. Fixed below.
+avebright <- format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), 2), nsmall = 2)
 
 stars_count <- sum(!is.na(repdata$VISSTARS_PCT))
-avestarvisvar <- ifelse(stars_count == 0, "**~not measured**", 
-                ifelse(stars_count == 1, "from a single measurement", 
-                "on average"))
-avestarvis <- format(round(mean(as.numeric(repdata$VISSTARS_PCT, na.rm = TRUE)),0),nsmall = 0)
+avestarvisvar <- ifelse(stars_count == 0, "**~not measured**",
+                ifelse(stars_count == 1, "from a single measurement", "on average"))
+avestarvis <- format(round(mean(as.numeric(repdata$VISSTARS_PCT), na.rm = TRUE), 0), nsmall = 0)
 
 # Average and extreme ALR values
+if (all(is.na(repdata$ALR_POS))) {
+  stop("All ALR_POS values are NA for park '", pcode, "' -- cannot compute ALR summary stats.",
+       call. = FALSE)
+}
 aveALR <- percent(mean(repdata$ALR_POS, na.rm = TRUE))
 minALR <- percent(min(repdata$ALR_POS, na.rm = TRUE))
 maxALR <- percent(max(repdata$ALR_POS, na.rm = TRUE))
 aveALRdec <- mean(repdata$ALR_POS, na.rm = TRUE)
 
-# Classify ALR based on Duriscoe 2018 standards, but these terms are a translation of that paper and first appeared in the Chaco night sky report 
 alrcat <- ifelse(aveALRdec <= 0.3, "excellent", ifelse(aveALRdec <= 2.0, "degraded", "significantly degraded"))
 
 
-###SQM
-# Step 1: Replace blank strings with NA in SQM
-repdata$SQM[repdata$SQM == " "] <- NA
+### SQM
+# Treat any blank/whitespace-only string as missing, not just a literal single space
+repdata$SQM <- trimws(as.character(repdata$SQM))
+repdata$SQM[repdata$SQM == ""] <- NA
 
-# Step 2: Count of non-NA values in SQM
 sqm_count <- sum(!is.na(repdata$SQM))
+avesqmvar <- ifelse(sqm_count == 0, "were not taken during this study **~[Delete following text and clarify no SQM taken]**",
+             ifelse(sqm_count == 1, "included a single measurement of", "averaged"))
 
-# Average SQM description
-avesqmvar <- ifelse(sqm_count == 0, "were not taken during this study **~[Delete following text and clarify no SQM taken]**", 
-             ifelse(sqm_count == 1, "included a single measurement of", 
-             "averaged"))
-
-# Check the current values in SQM
-print(unique(repdata$SQM))
-
-# Step 3: Convert SQM to numeric, forcing non-numeric to become NA
-repdata$SQM <- as.numeric(as.character(repdata$SQM))
-
-# Step 4: Calculate the mean while excluding NA values
+repdata$SQM <- suppressWarnings(as.numeric(repdata$SQM))
+if (sqm_count > 0 && all(is.na(repdata$SQM))) {
+  warning("SQM values were present but none could be converted to numeric -- check for unexpected text in the SQM column.",
+          call. = FALSE)
+}
 avesqm <- mean(repdata$SQM, na.rm = TRUE)
-
-# Step 5: Format the output to two decimal places
 avesqm <- format(round(avesqm, 2), nsmall = 2)
 
-
 # horizontal illuminance
-avehor<- format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE),2), nsmall = 2)
-
+avehor <- format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE), 2), nsmall = 2)
 
 # Number of datasets
 sumdset <- sum(repdata$DSET, na.rm = TRUE)
 
-### Data Wrangling: Bortle Class Descriptions Dataset
-# Convert to numeric, suppress warnings about NAs introduced by coercion
-repdata$BORTLE <- as.numeric(as.character(repdata$BORTLE))
-
-# Calculate mode
+### Bortle Class
+repdata$BORTLE <- suppressWarnings(as.numeric(as.character(repdata$BORTLE)))
+if (all(is.na(repdata$BORTLE))) {
+  stop("All BORTLE values are NA for park '", pcode, "' -- cannot determine a modal Bortle class.",
+       call. = FALSE)
+}
 bortle <- mfv(repdata$BORTLE, na_rm = TRUE)
-
-# If there's a tie, return the average rounded to the nearest whole number
 if (length(bortle) > 1) {
   bortle <- round(mean(repdata$BORTLE, na.rm = TRUE))
 }
 
-
-bortletable <- read_excel(".//Reference//BortleClass.xlsx")
-bortletable <- bortletable %>%
+bortle_path <- require_file(".//Reference//BortleClass.xlsx", "Bortle class descriptions")
+bortletable <- safe_read_excel(bortle_path, "Bortle class descriptions") %>%
   filter(class == bortle)
 
-# Store associated category and description
-bortcat <- bortletable$category
-bortdesc <- bortletable$description  
+if (nrow(bortletable) == 0) {
+  warning("No entry found in BortleClass.xlsx for Bortle class '", bortle,
+          "'. `bortcat`/`bortdesc` will be blank -- check the reference table.", call. = FALSE)
+  bortcat <- NA_character_
+  bortdesc <- NA_character_
+} else {
+  bortcat <- bortletable$category[1]
+  bortdesc <- bortletable$description[1]
+}
 
-### Data Wrangling: NELM Descriptions Dataset
-repdata$ZLM <- as.numeric(as.character(repdata$ZLM))
-
+### NELM
+repdata$ZLM <- suppressWarnings(as.numeric(as.character(repdata$ZLM)))
 nelm_count <- sum(!is.na(repdata$ZLM))
-avenelmvar <- ifelse(nelm_count == 0, "**~[NELM was not taken so delete this or clarify]**", 
-                ifelse(nelm_count == 1, "single measurement taken of", 
-                "average"))
-
-#repdata$ZLM <- as.numeric(as.character(repdata$ZLM))
+avenelmvar <- ifelse(nelm_count == 0, "**~[NELM was not taken so delete this or clarify]**",
+                ifelse(nelm_count == 1, "single measurement taken of", "average"))
 avenelm <- mean(repdata$ZLM, na.rm = TRUE)
 
-# Import and filter NELM table
-nelmcat <- read_excel(".//Reference//NELM.xlsx") %>%
-  mutate(diffnelm = abs(avenelm - nelm)) %>%
-  arrange(diffnelm) %>%
-  slice(1)
+nelm_path <- require_file(".//Reference//NELM.xlsx", "NELM descriptions")
+nelm_table <- safe_read_excel(nelm_path, "NELM descriptions")
+if (nrow(nelm_table) == 0 || nelm_count == 0) {
+  warning("Could not match a NELM description -- either the reference table is empty or no NELM was measured.",
+          call. = FALSE)
+  nelmcatdesc <- NA_character_
+} else {
+  nelmcat <- nelm_table %>%
+    mutate(diffnelm = abs(avenelm - nelm)) %>%
+    arrange(diffnelm) %>%
+    slice(1)
+  nelmcatdesc <- nelmcat$description
+}
 
-# Get NELM description
-nelmcatdesc <- nelmcat$description
-
-### Data Wrangling: ALR Model Output
-alrmodel <- read_excel(paste(".//Parks//", pcode, "//sALRoutput_", pcode, ".xls", sep = ""))
+### ALR Model Output (park-specific file)
+alrmodel_path <- require_file(
+  paste0(".//Parks//", pcode, "//sALRoutput_", pcode, ".xls"),
+  paste0("ALR model output for ", pcode)
+)
+alrmodel <- safe_read_excel(alrmodel_path, paste0("ALR model output for ", pcode))
+if (nrow(alrmodel) == 0) {
+  stop("The ALR model file for '", pcode, "' was found but contained no rows: ", alrmodel_path, call. = FALSE)
+}
 pmodlist <- unique(alrmodel$UNIT_CODE)
-
-# Categorical description model value
 alrmodel$cat <- ifelse(alrmodel$MEAN <= 0.3, "excellent", ifelse(alrmodel$MEAN <= 2.0, "degraded", "significantly degraded"))
-alrmodmed <- round(median(alrmodel$MEDIAN), digits = 2)
+alrmodmed <- round(median(alrmodel$MEDIAN, na.rm = TRUE), digits = 2)
 
-### Data Wrangling: ALR Model Symbology
-alrsymb <- read_excel(".//Reference//ModelSymbology.xlsx")
+### ALR Model Symbology
+alrsymb_path <- require_file(".//Reference//ModelSymbology.xlsx", "ALR model symbology")
+alrsymb <- safe_read_excel(alrsymb_path, "ALR model symbology")
 alrsymb$maincol <- ifelse(alrmodmed > alrsymb$alrlow & alrmodmed <= alrsymb$alrhigh, TRUE, FALSE)
 
-# Store the color
-parkmodelcolor <- alrsymb %>%
-  filter(maincol == TRUE) %>%
-  select(color)
+parkmodelcolor <- alrsymb %>% filter(maincol == TRUE) %>% select(color)
+if (nrow(parkmodelcolor) == 0) {
+  warning("No matching color category found in ModelSymbology.xlsx for the modeled ALR median value of ",
+          alrmodmed, ". `parkcolor` will be blank.", call. = FALSE)
+  parkcolor <- NA_character_
+} else {
+  parkcolor <- parkmodelcolor$color[1]
+}
 
-parkcolor <- parkmodelcolor$color
-
-### Start gathering data summaries for light pollution source data
-sources <- read_excel(paste(".//Parks//", pcode, "//ReportPark_NearTable_", pcode, ".xlsx", sep = ""))
+### Light pollution source data (park-specific file)
+sources_path <- require_file(
+  paste0(".//Parks//", pcode, "//ReportPark_NearTable_", pcode, ".xlsx"),
+  paste0("nearby light sources for ", pcode)
+)
+sources <- safe_read_excel(sources_path, paste0("nearby light sources for ", pcode))
 sources$NAME <- gsub(' city| City| CDP', '', sources$NAME)
 
-# Convert distance in meters to km
 sources$dist_km <- round(sources$NEAR_DIST * 0.001, digits = 0)
-
-# Calculate Walkers Law
 sources$d <- sources$dist_km^-2.5
 sources$walkers <- round((0.01 * sources$P0010001 * sources$d) * 100, digits = 2)
-sources$azimuth <- round(ifelse(sources$NEAR_ANGLE > 0, 
-                                 sources$NEAR_ANGLE, 
-                                 (360 + sources$NEAR_ANGLE)), 
-                         digits = 0)
+sources$azimuth <- round(ifelse(sources$NEAR_ANGLE > 0, sources$NEAR_ANGLE, (360 + sources$NEAR_ANGLE)), digits = 0)
 
-# Subset data based on site of interest
 lightsource <- sources %>%
   filter(SITE_NAME == soi, DNIGHT == soidset, dist_km < sdist, walkers > 0) %>%
   arrange(desc(walkers)) %>%
   top_n(10, walkers) %>%
   select(NAME, P0010001, dist_km, azimuth, walkers)
 
-# List of cities for report
+if (nrow(lightsource) == 0) {
+  warning("No nearby light sources matched SITE_NAME = '", soi, "' and DNIGHT = '", soidset,
+          "' within ", sdist, " km. Double-check `soi`/`soidset` exactly match the sources table -- ",
+          "the city lists and Table 3 will be empty.", call. = FALSE)
+}
+
 citylist <- list(lightsource$NAME)
 
-# Top 3 cities based on P0010001
-top3cities <- lightsource %>%
-  arrange(desc(P0010001)) %>%
-  top_n(3, P0010001) %>%
-  select(NAME)
-
+top3cities <- lightsource %>% arrange(desc(P0010001)) %>% top_n(3, P0010001) %>% select(NAME)
 topcitylist <- list(top3cities$NAME)
 
 # File path to park-specific figures
-park.folder <- paste(".//Figures//", pcode, "//", sep = "")
+park.folder <- paste0(".//Figures//", pcode, "//")
+if (!dir.exists(park.folder)) {
+  warning("Figures folder not found: ", park.folder,
+          ". Figure chunks below will show a placeholder instead of failing the whole render.",
+          call. = FALSE)
+}
 
 # Extract year from site of interest data
-soiyear <- as.numeric(sub(".*,\\s*", "", soidate))
+soiyear <- suppressWarnings(as.numeric(sub(".*,\\s*", "", soidate)))
+if (is.na(soiyear)) {
+  warning("Could not extract a year from `soidate` ('", soidate, "').", call. = FALSE)
+}
 
 ```
 
@@ -317,10 +590,10 @@ Photometric Assessment of Night Sky Quality at `r (park)`
 
 
 
-```{r coverimage, echo=FALSE, ft.align="center",out.width = '65%'}
-covlink<-paste("https://www.nps.gov/subjects/nightskies/graphics/", soidset,".png", sep="")
-include_graphics(covlink)
-
+```{r coverimage, echo=FALSE}
+covlink <- paste0("https://www.nps.gov/subjects/nightskies/graphics/", soidset, ".png")
+coverimg <- safe_download_image(covlink, "cover image")
+insert_centered_image(coverimg, width_in = content_width_in * 0.65, label = "cover image")
 ```
 
 :::{custom-style="sr Photo caption"}
@@ -358,10 +631,7 @@ The sky overhead remains **~[insert manual description]** with an `r (avebrightv
 
 In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. Under this Bortle condition, **~[insert description, ex. the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.]** The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, **~[example text: indicating the zenith is darker than what we can accurately measure with a SQM.]**  The main influence on `r (pcode)`’s night sky quality, ordered by estimated brightness of light domes, were from **~[NOTE on authors discretion: The following cities are based on Walker's Law and can be altered to consolidate areas (i.e. the Salt Lake to PRovo area) or removed based on context/nuance]**
 ```{r clist1,echo=FALSE, message=FALSE,results = 'asis'}
-# Print names from lightsource$NAME with a comma separator
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
- 
-
 ```
 .  **~[insert closing observations here: ex. These light domes were observed along the horizon, with a few exceeding the natural brightness of the Milky Way.]**
 
@@ -452,14 +722,13 @@ Light from artificial sources has altered the natural luminance of the night sky
 
 `r (pcat)` is located near **~[insert description of `r (pcode)` here. Utilize the park's website, Foundation Doc, RSS, Interp Themes, etc. ]** (Figure 1). The park is in **~[Enter `r (pcode)` habitat and landscape description here]**. The nearest populated centers are **~[Authors should look at light dome data, research local settings before accepting automated cities that follow. Use the cities as guidance but use discretion to consolidate areas or provide nuanced geographical summaries. Consider including here how local communities are treating lighting and night sky (i.e. lighting ordinances, Dark Sky designation, etc.)]**
 ```{r clist2,echo=FALSE, message=FALSE,results = 'asis'}
-# Print all names from lightsource$NAME separated by commas
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
 ```
 .
 :::
-```{r genmap, echo=FALSE, out.width='100%', ft.align='center'}
-# Include the park geographic location image
-include_graphics(file.path(park.folder, "park_geographic_location.png"))
+```{r genmap, echo=FALSE}
+genmap_path <- safe_local_image(file.path(park.folder, "park_geographic_location.png"), "Figure 1 (park geographic location)")
+insert_centered_image(genmap_path, width_in = content_width_in, label = "Figure 1 (park geographic location)")
 ```
 
 :::{custom-style="sr Figure caption"}
@@ -484,10 +753,9 @@ Figure 2 shows a typical NPS Night Skies camera system used from 2010 onward. Th
 
 :::
 
-```{r skycam, echo=FALSE, out.width='70%', ft.align='center'}
-# Include the all skycam image
-include_graphics(file.path(park.folder, "all_skycam.png"))
-
+```{r skycam, echo=FALSE}
+skycam_path <- safe_local_image(file.path(park.folder, "all_skycam.png"), "Figure 2 (camera system)")
+insert_centered_image(skycam_path, width_in = content_width_in * 0.70, label = "Figure 2 (camera system)")
 ```
 
 :::{custom-style="sr Figure caption"}
@@ -514,20 +782,16 @@ Table 1. Ground-based data collection events at `r (park)`. ‘Sets’ refers to
 
 
 ```{r table1, echo=FALSE, ft.align="center", out.width='100%'}
-# Create dataset for table data and format by survey date
 tab1 <- repdata %>%
   select(Date, SITE_NAME, CAMERA, DSET, OBSERVERS) %>% 
   arrange(Date) %>%
   mutate(Date1 = Date) %>% 
   select(Date1, SITE_NAME, CAMERA, DSET, OBSERVERS)
 
-# Clean up OBSERVERS to remove unwanted characters
 tab1$OBSERVERS <- sub("\\r?\\n", ", ", tab1$OBSERVERS)
 
-# Change column names for the report
 colnames(tab1) <- c("Date", "Site Name", "Camera", "Sets", "Observers")
 
-# Format table for Word report
 flextable(tab1) %>%
   align(j = 1:2, align = "left", part = "all") %>% 
   align(j = 3:4, align = "center", part = "all") %>%
@@ -537,9 +801,8 @@ flextable(tab1) %>%
   padding(padding = 0, part = "all") %>%
   autofit() %>% 
   border_outer() %>% 
-  border_inner()
-
-
+  border_inner() %>%
+  apply_sr_table_styles()
 ```
 
 <br>
@@ -559,23 +822,19 @@ Table 2. Data collection sites at `r (park)`.
 
  
 ```{r table2, echo=FALSE, ft.align="center", out.width='100%'}
-# Create dataset for table data
 tab2 <- repdata %>%
   select(SITE_NAME, ELEVATION, LATITUDE, LONGITUDE) %>%
   arrange(ELEVATION)
 
-# Average out different lat/long from different site visits
 tab2 <- tab2 %>%
   group_by(SITE_NAME) %>%
   summarize(ELEVATION = mean(ELEVATION, na.rm = TRUE), 
             LATITUDE = mean(LATITUDE, na.rm = TRUE), 
             LONGITUDE = mean(LONGITUDE, na.rm = TRUE), 
-            .groups = 'drop')  # Drop the grouping after summarizing
+            .groups = 'drop')
 
-# Change column names for the table
 colnames(tab2) <- c("Site Name", "Elevation (m)", "Latitude", "Longitude")
 
-# Create table formatted for report
 flextable(tab2) %>% 
   align(j = 1, align = "left", part = "all") %>% 
   align(j = 2:4, align = "center", part = "all") %>%
@@ -585,26 +844,24 @@ flextable(tab2) %>%
   padding(padding = 0, part = "all") %>%
   autofit() %>% 
   border_outer() %>% 
-  border_inner()
-
+  border_inner() %>%
+  apply_sr_table_styles()
 ```
 
 
 <br>
 
 ```{r siteloop, echo=FALSE, message=FALSE, results='asis'}
-# Create dataset for site data
 siteloop <- repdata %>%
   select(SITE_NAME, NPS_UNIT, LATITUDE) %>%
   group_by(SITE_NAME, NPS_UNIT) %>%
   summarize(LATITUDE = mean(LATITUDE, na.rm = TRUE), .groups = 'drop') %>%
   arrange(LATITUDE)
 
-# Loop through each site and output formatted results
 for (i in seq_along(siteloop$SITE_NAME)) {
   cat(paste("###", siteloop$SITE_NAME[i], "\n"))
   cat(paste(siteloop$SITE_NAME[i], "is located in", siteloop$NPS_UNIT[i], "**[insert site text here. Include why site was chosen, orientation, relation to data collection request, etc. Check appendix A for some site specific text that was noted during data collection]**\n"))
-  cat("\n")  # Add additional line spacing for clarity
+  cat("\n")
 }
 ```
 :::
@@ -616,9 +873,9 @@ For each data set, we process the images to generate a panoramic view of the nig
 ## Calculating Skyglow Impact from Nearby Cities
 To expedite interpreting the all-sky images, we use Walker’s Law to estimate brightness of light domes. Walker's Law is a formula that estimates the brightness of city light domes based on the relationship between the size of a city's population and the distance to the observation site. Brightness is expressed as a percent above natural sky luminance at a 45$^\circ$ angle above the horizon. Dark Sky International proposed using the Walker’s Law in the following form:
 
-```{r walkers, echo=FALSE, ft.align="center", out.width='70%'}
-# Include the walkers image
-include_graphics(file.path(park.folder, "walkers.png"))
+```{r walkers, echo=FALSE}
+walkers_path <- safe_local_image(file.path(park.folder, "walkers.png"), "Walker's Law equation image")
+insert_centered_image(walkers_path, width_in = content_width_in * 0.25, label = "Walker's Law equation image")
 ```
 :::
 
@@ -654,22 +911,22 @@ The ground-based observations yield the calibrated panoramic images of the night
 <br>
 
 
-```{r fig3, echo=FALSE, out.width='100%'}
-# Create dataset for figure
+```{r fig3, echo=FALSE}
 fig3 <- repdata %>%
   select(DNIGHT, SITE_NAME, FULL_LINK) %>%
   filter(DNIGHT == soidset)
 
-# Extract the full path for the graphic
-fullpath <- fig3$FULL_LINK
+fig3img <- if (nrow(fig3) == 0 || is.na(fig3$FULL_LINK[1])) {
+  NULL
+} else {
+  safe_download_image(fig3$FULL_LINK[1], "Figure 3 (observed sky panorama)")
+}
 
-# Include the graphic
-include_graphics(fullpath)
-
+insert_centered_image(fig3img, width_in = content_width_in, label = "Figure 3 (observed sky panorama)")
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`.  The image is oriented, from left to right, **[NOTE: Author needs to reshuffle the orientation/direction based on the image]: east (90$^\circ$), south (180$^\circ$), west (270$^\circ$), north (0$^\circ$) and east. West is at the center of the image.** The grid lines are spaced 30$^\circ$ apart. The observed sky shows light from all sources, both natural and artificial (`r (fullpath)`). 
+Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`.  The image is oriented, from left to right, **[NOTE: Author needs to reshuffle the orientation/direction based on the image]: east (90$^\circ$), south (180$^\circ$), west (270$^\circ$), north (0$^\circ$) and east. West is at the center of the image.** The grid lines are spaced 30$^\circ$ apart. The observed sky shows light from all sources, both natural and artificial (`r if (nrow(fig3) > 0) fig3$FULL_LINK[1] else "not available"`). 
 :::
 
 :::{custom-style="sr Image credit"}
@@ -679,7 +936,6 @@ NPS/NIGHT SKIES PROGRAM
 :::{custom-style="sr Alternate text"}
 Figure 3. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The image is oriented, from left to right, **[NOTE: Author needs to reshuffle the orientation/direction based on the image]: east (90$^\circ$), south (180$^\circ$), west (270$^\circ$), north (0$^\circ$) and east. West is at the center of the image.** The top of the image includes a scale depicting sky brightness, which is measured in magnitude per square arcsecond (mag/arcsec²). Magnitude (mag) is a common unit for measuring the brightness of astronomical objects, and it is an inverted logarithmic scale. Lower values are brighter. A difference of 5 magnitudes corresponds to a 100x difference in brightness. The images are shown in false color, with warmer colors representing brighter skies. The upper right-hand corner displays the national park unit, site name, and date and time. The night sky image is domed in shape and expands within the frame of the panoramic image. Grid lines are spaced 30$^\circ$ apart and they depict the azimuth outward from the camera (0-360 $^\circ$). The observed sky shows light from all sources, both natural and artificial. The red and yellow colors indicate skyglow from nearby cities, including **[NOTE: Include observations of one or more sources from the following list (consider adding the azimuth and location in the image (i.e. center or right or left) to help parks interpret the light domes) Also For visually impaired, more important to describe location of red and yellow colors within image than identify cities.: ]**
 ```{r clist4, echo=FALSE, message=FALSE, results='asis'}
-# Create a comma-separated list of places
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
 ```
 . **~UPDATE Observation text: The image features mostly purple and dark blue colors, which indicate more natural night sky. The Milky Way is centered in the image and appears green and yellow in this color scheme. Some of the yellow-green indicate sky brightness from stars.** 
@@ -687,22 +943,22 @@ cat(paste(lightsource$NAME, collapse = ", "), "\n")
 
 <br>
 
-```{r fig4, echo=FALSE, ft.align="center", out.width='100%',dpi=300}
-# Create dataset for the figure
+```{r fig4, echo=FALSE}
 fig4 <- repdata %>%
   select(DNIGHT, SITE_NAME, ART_LINK) %>%
   filter(DNIGHT == soidset)
 
-# Extract the path for the artwork
-artpath <- fig4$ART_LINK
+fig4img <- if (nrow(fig4) == 0 || is.na(fig4$ART_LINK[1])) {
+  NULL
+} else {
+  safe_download_image(fig4$ART_LINK[1], "Figure 4 (artificial skyglow panorama)")
+}
 
-# Include the graphic
-include_graphics(artpath)
-
+insert_centered_image(fig4img, width_in = content_width_in, label = "Figure 4 (artificial skyglow panorama)")
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 4. Panoramic image of artificial skyglow at the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes (`r (artpath)`). 
+Figure 4. Panoramic image of artificial skyglow at the `r (soi)` site on `r (soidate)`. The grid lines are spaced 30$^\circ$ apart. The image displays estimated skyglow from artificial sources. The natural light has been removed from this image, showing only the artificial skyglow and associated light domes (`r if (nrow(fig4) > 0) fig4$ART_LINK[1] else "not available"`). 
 :::
 
 :::{custom-style="sr Image credit"}
@@ -712,9 +968,7 @@ NPS/NIGHT SKIES PROGRAM
 :::{custom-style="sr Alternate text"}
 Figure 4. Panoramic image of the night sky from the `r (soi)` site on `r (soidate)`. The top of the image includes a scale depicting sky brightness, which is measured in magnitude per square arcsecond (mag/arcsec²). Magnitude (mag) is a common unit for measuring the brightness of astronomical objects, and it is an inverted logarithmic scale. A difference of 5 magnitudes corresponds to a 100x difference in brightness. The images are shown in false color, with warmer colors representing lower values and thus brighter skies. The upper right-hand corner displays the national park unit, site name, and date and time. The night sky image is domed in shape and expands within the frame of the panoramic image. Grid lines are spaced 30 degrees apart and depict the azimuth outward from the camera (0-360 degrees). The natural light has been removed from this image, showing only the artificial skyglow and associated light domes from **[NOTE: Include observations of one or more sources from the following list (consider adding the azimuth and location in the image (i.e. center or right or left) to help parks interpret the light domes): ]**
 ```{r clist5, echo=FALSE, message=FALSE, results='asis'}
-# Create a comma-separated list of places
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
-
 ```
 .  
 
@@ -730,25 +984,28 @@ Table 3. Nearby cities and their estimated skyglow impact at the `r (soi)` site.
 
 
 ```{r table3, echo=FALSE, ft.align="center", out.width='100%'}
-# Change column names for the report
-colnames(lightsource) <- c("Place", 
-                            "Population\n in 2020", 
-                            "Distance \n (km)", 
-                            "Azimuth \n (degree)", 
-                            "Walker's Value \n (% above natural)")
-
-# Format table for Word report
-flextable(lightsource) %>% 
-  align(j = 1, align = "left", part = "all") %>% 
-  align(j = 2:5, align = "center", part = "all") %>%
-  fontsize(size = 9, part = "header") %>%
-  bold(part = "header") %>%
-  fontsize(size = 9, part = "body") %>%
-  padding(padding = 0, part = "all") %>%
-  autofit() %>% 
-  border_outer() %>% 
-  border_inner()
-
+if (nrow(lightsource) == 0) {
+  cat("**[No nearby light sources to display -- see warning above about `soi`/`soidset` matching.]**")
+} else {
+  lightsource_tab <- lightsource
+  colnames(lightsource_tab) <- c("Place", 
+                              "Population\n in 2020", 
+                              "Distance \n (km)", 
+                              "Azimuth \n (degree)", 
+                              "Walker's Value \n (% above natural)")
+  
+  flextable(lightsource_tab) %>% 
+    align(j = 1, align = "left", part = "all") %>% 
+    align(j = 2:5, align = "center", part = "all") %>%
+    fontsize(size = 9, part = "header") %>%
+    bold(part = "header") %>%
+    fontsize(size = 9, part = "body") %>%
+    padding(padding = 0, part = "all") %>%
+    autofit() %>% 
+    border_outer() %>% 
+    border_inner() %>%
+    apply_sr_table_styles()
+}
 ```
 
 :::
@@ -778,156 +1035,64 @@ Horizontal illuminance describes the amount of light landing on a horizontal sur
 Table 4. `r (park)` sky brightness metrics derived from the observed images. 
 :::
 
-:::{custom-style="sr Table cell"}
-
 ```{r table4, echo=FALSE, ft.align="center", out.width = '100%'}
 
-repdata$VISSTARS_PCT=as.numeric(repdata$VISSTARS_PCT)
-#create dataset for table4 data
-tab4<-repdata %>% select(SITE_NAME,MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS,Date) %>% 
-  arrange(Date)%>%
+repdata$VISSTARS_PCT <- as.numeric(repdata$VISSTARS_PCT)
+tab4 <- repdata %>% select(SITE_NAME, MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS, Date) %>% 
+  arrange(Date) %>%
   mutate_if(is.numeric, round, 2) %>%
   select(-Date)
 
-#convert to better date format
-tab4$Date<-tab4$MID_DATE_LMT
+tab4$Date <- tab4$MID_DATE_LMT
 
-#need to convert decimal time to hh:mm
-tab4$MID_TIME_LMT<-as.character(tab4$MID_TIME_LMT)
-#take first part of number and separate out the hours
-tab4$Hr<-as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = TRUE, pattern = "."))
+tab4$MID_TIME_LMT <- as.character(tab4$MID_TIME_LMT)
+tab4$Hr <- suppressWarnings(as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = TRUE, pattern = ".")))
+tab4$dec_min <- suppressWarnings(round((as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = FALSE, pattern = ".")) * .01) * 60, digits = 0))
 
-#take decimal and convert to minutes
-tab4$dec_min<-round((as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = FALSE, pattern = "."))*.01)*60,digits=0)
-#Add zero before single digits
-tab4$dec_min<-ifelse(nchar(tab4$dec_min)==1,paste("0",tab4$dec_min,sep=""),tab4$dec_min)
-#bring both hh and mm together
-tab4$hhmm<-paste(tab4$Hr,":",tab4$dec_min,sep = "")
+if (any(is.na(tab4$Hr)) || any(is.na(tab4$dec_min))) {
+  warning("Some times in Table 4 could not be parsed into hh:mm -- check MID_TIME_LMT for unexpected values.",
+          call. = FALSE)
+}
 
+tab4$dec_min <- ifelse(nchar(tab4$dec_min) == 1, paste0("0", tab4$dec_min), tab4$dec_min)
+tab4$hhmm <- paste(tab4$Hr, ":", tab4$dec_min, sep = "")
 
-#select data fields for table 4
-tab4<-tab4 %>% select(SITE_NAME,Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS)  
+tab4 <- tab4 %>% select(SITE_NAME, Date, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS)
 
-#change column names for published table
-colnames(tab4)<- c("Site Name","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Luminance \n (mag/arcsec2)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+colnames(tab4) <- c("Site Name", "Date", "Time\n (hh:mm)", "Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Luminance \n (mag/arcsec2)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
 
-#create dataset for reference values
-refdata<- data.frame(SiteName=c('Urban Sky', 'Natural Sky'),Date=c('' , ''),Time=c('' , ''), hi=c(39.56,0.80), mvi=c(29.04, 0.40), zb=c(18.00, 22.00), ls=c(8,100), alr=c(64.43,0.00) )
-#refdata$zb<-(round(refdata$zb, digits=2))
+refdata <- data.frame(SiteName = c('Urban Sky', 'Natural Sky'), Date = c('', ''), Time = c('', ''), hi = c(39.56, 0.80), mvi = c(29.04, 0.40), zb = c(18.00, 22.00), ls = c(8, 100), alr = c(64.43, 0.00))
+colnames(refdata) <- colnames(tab4)
 
-#change column names of reference data set to match tab4 dataset
-colnames(refdata)<- c("Site Name","Date","Time\n (hh:mm)","Horizontal\n Illuminance \n (mlx)", "Max. Vertical \n Illuminance \n (mlx)", "Zenith \n Luminance \n (mag/arcsec2)", "Stars \n Visible \n  (%)", "All-sky Light \n Pollution \n Ratio")
+tab4 <- dplyr::bind_rows(tab4, refdata)
 
-#combind data table with reference table
-tab4<-rbind(tab4,refdata)
-
-#create table formatted for report
-ft4<-flextable(tab4) %>% 
-  align(j=1,align="left", part="all") %>% 
-  align(j=c(2:8),align="center", part="all") %>%
+ft4 <- flextable(tab4) %>% 
+  align(j = 1, align = "left", part = "all") %>% 
+  align(j = c(2:8), align = "center", part = "all") %>%
   fontsize(size = 9, part = "header") %>%
-  bold(part="header") %>%
+  bold(part = "header") %>%
   fontsize(size = 9, part = "body") %>%
-  padding(padding = 0, part = "all")  %>%
+  padding(padding = 0, part = "all") %>% 
   autofit() %>% 
-  border_outer()%>% 
+  border_outer() %>% 
   border_inner()
 
-#find row number for urban sky for relative placement of superscript
-urbannum<-which(tab4[1] == 'Urban Sky')
-#find row number for natural sky for relative placement of superscript
-natnum<-which(tab4[1] == 'Natural Sky')
+urbannum <- which(tab4[1] == 'Urban Sky')
+natnum <- which(tab4[1] == 'Natural Sky')
 
-#Add first superscript (A)
-#ft4a<-compose(ft4, i=1, j=4,part="header", value=as_paragraph( "Max. Vertical \n Illuminance",
-    #as_sup(" A"),"\n (mlx)"))
-#Add second superscript (b)  
-ft4<- compose(ft4, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky",as_sup(" A"))) 
-#Add third superscript (c)
-ft4<-compose(ft4, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
-#add superscript 2
-ft4<-compose(ft4, i=1, j=7,part="header", value=as_paragraph( "Zenith \n Luminance \n (mag/arcsec",as_sup("2"),")"))
+if (length(urbannum) == 0 || length(natnum) == 0) {
+  warning("Could not locate Urban Sky / Natural Sky reference rows in Table 4 for footnote superscripts.",
+          call. = FALSE)
+}
 
+ft4 <- compose(ft4, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
+ft4 <- compose(ft4, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
+ft4 <- compose(ft4, i = 1, j = 7, part = "header", value = as_paragraph("Zenith \n Luminance \n (mag/arcsec", as_sup("2"), ")"))
 
-#print table
+ft4 <- apply_sr_table_styles(ft4)
+
 ft4
-
-
-
-# 
-# # Convert VISSTARS_RATIO to numeric
-# repdata$VISSTARS_PCT <- as.numeric(repdata$VISSTARS_PCT)
-# 
-# # Create dataset for table 4 data
-# tab4 <- repdata %>%
-#   select(MID_DATE_LMT, MID_TIME_LMT, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS,Date) %>%
-#   arrange(Date) %>%
-#   mutate_if(is.numeric, round, 2) %>%
-#   select(-Date)
-# 
-# # Convert to better date format
-# tab4$MID_DATE_LMT <- tab4$MID_DATE_LMT
-# 
-# # Convert decimal time to hh:mm format
-# tab4$MID_TIME_LMT <- as.character(tab4$MID_TIME_LMT)
-# tab4$Hr <- as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = TRUE, pattern = "."))
-# tab4$dec_min <- round((as.numeric(str_extract_part(tab4$MID_TIME_LMT, before = FALSE, pattern = ".")) * 0.01) * 60, digits = 0)
-# tab4$dec_min <- sprintf("%02d", tab4$dec_min)  # Add zero before single digits
-# tab4$hhmm <- paste(tab4$Hr, ":", tab4$dec_min, sep = "")
-# 
-# # Select data fields for table 4
-# tab4 <- tab4 %>%
-#   select(MID_DATE_LMT, hhmm, HORIZ_MLX, MAXVERT_MLX, ZENITH_LUM_MSA, VISSTARS_PCT, ALR_POS)
-# 
-# # Change column names for published table
-# colnames(tab4) <- c("Date", "Time\n (hh:mm)", "Horizontal\n Illuminance \n (mlx)", 
-#                      "Max. Vertical \n Illuminance \n (mlx)", 
-#                      "Zenith \n Luminance \n (mag/arcsec)", 
-#                      "Stars \n Visible \n  (%)", 
-#                      "All-sky Light \n Pollution \n Ratio")
-# 
-# # Create dataset for reference values
-# refdata <- data.frame(Date = c('Urban Sky', 'Natural Sky'),
-#                       Time = c('', ''),
-#                       hi = c(39.56, 0.80),
-#                       mvi = c(29.04, 0.40),
-#                       zb = c(18.00, 22.00),
-#                       ls = c(8, 100),
-#                       alr = c(64.43, 0.00))
-# 
-# # Change column names of reference data set to match tab4 dataset
-# colnames(refdata) <- colnames(tab4)
-# 
-# # Combine data table with reference table
-# tab4 <- rbind(tab4, refdata)
-# 
-# # Create formatted table for report
-# ft4 <- flextable(tab4) %>%
-#   align(j = 1, align = "left", part = "all") %>%
-#   align(j = 2:7, align = "center", part = "all") %>%
-#   fontsize(size = 9, part = "header") %>%
-#   bold(part = "header") %>%
-#   fontsize(size = 9, part = "body") %>%
-#   padding(padding = 0, part = "all") %>%
-#   autofit() %>%
-#   border_outer() %>%
-#   border_inner()
-# 
-# # Find row numbers for relative placement of superscript
-# urbannum <- which(tab4[[1]] == 'Urban Sky')
-# natnum <- which(tab4[[1]] == 'Natural Sky')
-# 
-# # Add superscripts
-# ft4 <- compose(ft4, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
-# ft4 <- compose(ft4, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
-# ft4 <- compose(ft4, i = 1, j = 5, part = "header", value = as_paragraph("Zenith Luminance", "\n (mag/arcsec", as_sup("2"), ")"))
-# 
-# # Print table
-# ft4
-
-
 ```
-:::
 
 :::{custom-style="sr Table note"}
 
@@ -943,12 +1108,10 @@ ft4
 
 
 ```{r resultwrangletab4, echo=FALSE, ft.align="center"}
-# Calculate maximum vertical illuminance
 maxvert <- round(max(repdata$MAXVERT_MLX, na.rm = TRUE), digits = 2)
 maxvertref <- ifelse(maxvert < 0.40, "less than", 
                      ifelse(maxvert == 0.40, "equal to", "greater than"))
 
-# Calculate average zenith luminance
 zenskyb <- round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits = 2)
 
 ```
@@ -974,112 +1137,48 @@ Whenever possible, NSNSD complements our CCD camera observations with visual ass
 Table 5. `r (park)` visual and SQM measurements. 
 :::
 
-:::{custom-style="sr Table cell"}
-
 ```{r table5, echo=FALSE, ft.align="center", out.width = '100%'}
-#create dataset for table5 data
-tab5<-repdata %>% select(SITE_NAME, MID_DATE_LMT, BORTLE, ZLM, SQM,Date) %>% #Need to verify correct measures
-  arrange(Date)%>%
-  mutate_if(is.numeric, round, 2)%>%
+tab5 <- repdata %>% select(SITE_NAME, MID_DATE_LMT, BORTLE, ZLM, SQM, Date) %>%
+  arrange(Date) %>%
+  mutate_if(is.numeric, round, 2) %>%
   select(-Date)
 
-#convert to better date format
-tab5$MID_DATE_LMT<-tab5$MID_DATE_LMT
+tab5$MID_DATE_LMT <- tab5$MID_DATE_LMT
 
+colnames(tab5) <- c("Site Name", "Date", "Bortle\n Class", "Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
 
-#change column names for published table
-colnames(tab5)<- c("Site Name","Date","Bortle\n Class","Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
+refdatabc <- data.frame(SiteName = c('Urban Sky', 'Natural Sky'), Date = c('', ''), bc = c(8, 1), lm = c(5.2, 7.0), sqm = c(18.36, 22.00))
+colnames(refdatabc) <- colnames(tab5)
 
-#create dataset for reference values
-refdatabc<- data.frame(SiteName=c('Urban Sky', 'Natural Sky'),Date=c('' , ''),bc=c(8,1), lm=c(5.2, 7.0), sqm=c(18.36, 22.00))
-#refdata$zb<-(round(refdata$zb, digits=2))
+tab5 <- dplyr::bind_rows(tab5, refdatabc)
 
-#change column names of reference data set to match tab4 dataset
-colnames(refdatabc)<-  c("Site Name","Date","Bortle\n Class","Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
-
-#combind data table with reference table
-tab5<-rbind(tab5,refdatabc)
-
-#create table formatted for report
-ft5<-flextable(tab5) %>% 
-  align(j=1,align="left", part="all") %>% 
-  align(j=c(2:5),align="center", part="all") %>%
+ft5 <- flextable(tab5) %>% 
+  align(j = 1, align = "left", part = "all") %>% 
+  align(j = c(2:5), align = "center", part = "all") %>%
   fontsize(size = 9, part = "header") %>%
-  bold(part="header") %>%
+  bold(part = "header") %>%
   fontsize(size = 9, part = "body") %>%
-  padding(padding = 0, part = "all")  %>%
+  padding(padding = 0, part = "all") %>% 
   autofit() %>% 
-  border_outer()%>% 
+  border_outer() %>% 
   border_inner()
 
-#find row number for urban sky for relative placement of superscript
-urbannum<-which(tab5[1] == 'Urban Sky')
-#find row number for natural sky for relative placement of superscript
-natnum<-which(tab5[1] == 'Natural Sky')
+urbannum <- which(tab5[1] == 'Urban Sky')
+natnum <- which(tab5[1] == 'Natural Sky')
 
-#Add first superscript (A)
+if (length(urbannum) == 0 || length(natnum) == 0) {
+  warning("Could not locate Urban Sky / Natural Sky reference rows in Table 5 for footnote superscripts.",
+          call. = FALSE)
+}
 
-ft5<- compose(ft5, i=urbannum, j=1,part="body", value=as_paragraph( "Urban Sky",as_sup(" A"))) 
-#Add third superscript (c)
-ft5<-compose(ft5, i=natnum, j=1,part="body", value=as_paragraph( "Natural Sky",as_sup(" B")))
-#add superscript 2
-ft5<-compose(ft5, i=1, j=5,part="header", value=as_paragraph( "SQM","\n (mag/arcsec",as_sup("2"),")"))
-#print table
+ft5 <- compose(ft5, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
+ft5 <- compose(ft5, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
+ft5 <- compose(ft5, i = 1, j = 5, part = "header", value = as_paragraph("SQM", "\n (mag/arcsec", as_sup("2"), ")"))
+
+ft5 <- apply_sr_table_styles(ft5)
+
 ft5
-
-# # Create dataset for table 5
-# tab5 <- repdata %>%
-#   select(MID_DATE_LMT, BORTLE, ZLM, SQM, Date) %>% # Verify correct measures
-#   arrange(Date) %>%
-#   mutate_if(is.numeric, round, 2)%>%
-#   select(-Date)
-# 
-# # Convert to better date format (not needed as no explicit transformation)
-# tab5$MID_DATE_LMT <- tab5$MID_DATE_LMT
-# 
-# # Change column names for published table
-# colnames(tab5) <- c("Date", "Bortle\n Class", "Limiting\n Magnitude", "SQM \n (mag/arcsec2)")
-# 
-# # Create dataset for reference values
-# refdatabc <- data.frame(Date = c('Urban Sky', 'Natural Sky'),
-#                         Bortle_Class = c(8, 1),
-#                         Limiting_Magnitude = c(5.2, 7.0),
-#                         SQM = c(18.36, 22.00))
-# 
-# # Change column names of reference data set to match tab5 dataset
-# colnames(refdatabc) <- colnames(tab5)
-# 
-# # Combine data table with reference table
-# tab5 <- rbind(tab5, refdatabc)
-# 
-# # Create formatted table for report
-# ft5 <- flextable(tab5) %>%
-#   align(j = 1, align = "left", part = "all") %>%
-#   align(j = 2:4, align = "center", part = "all") %>%
-#   fontsize(size = 9, part = "header") %>%
-#   bold(part = "header") %>%
-#   fontsize(size = 9, part = "body") %>%
-#   padding(padding = 0, part = "all") %>%
-#   autofit() %>%
-#   border_outer() %>%
-#   border_inner()
-# 
-# # Find row number for urban sky for relative placement of superscript
-# urbannum <- which(tab5$Date == 'Urban Sky')
-# # Find row number for natural sky for relative placement of superscript
-# natnum <- which(tab5$Date == 'Natural Sky')
-# 
-# # Add superscripts
-# ft5 <- compose(ft5, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
-# ft5 <- compose(ft5, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
-# ft5 <- compose(ft5, i = 1, j = 4, part = "header", value = as_paragraph("SQM", "\n (mag/arcsec", as_sup("2"), ")"))
-# 
-# # Print table
-# ft5
-
 ```
-
-:::
 
 :::{custom-style="sr Table note"}
 
@@ -1098,10 +1197,9 @@ The hand-held Sky Quality Meter (SQM) is an economic and convenient tool to take
 ## Regional Sky Brightness Model
 Figure 5 displays park and regional brightness of skyglow based on the SALR model using the annual `r (viirsyear)` cloud-free composite of VIIRS data. The metric depicted is all-sky average sky brightness, expressed as a ratio of artificial to natural background light. Skyglow can be seen from up to 300 kilometers away from large metropolitan areas (Duriscoe et al. 2018). The map displays the park and the surrounding area, including cities within approximately `r (sdist)` km. This map provides a landscape view of the average sky brightness in and around the park. The scale on the left gives the ratio between the natural and artificial light where the lower the ratio, the better the night sky viewing and the lower the levels of visible artificial light.
 
-```{r fig5, echo=FALSE, out.width='100%'}
-# Include the sALR image
-include_graphics(file.path(park.folder, "sALR.png"))
-
+```{r fig5, echo=FALSE}
+fig5_path <- safe_local_image(file.path(park.folder, "sALR.png"), "Figure 5 (regional ALR model)")
+insert_centered_image(fig5_path, width_in = content_width_in, label = "Figure 5 (regional ALR model)")
 ```
 
 :::{custom-style="sr Figure caption"}
@@ -1114,25 +1212,21 @@ NPS/NIGHT SKIES PROGRAM
 :::{custom-style="sr Alternate text"}
 Figure 5. A model of average all-sky light pollution ratio (ALR) in the region surrounding `r (pcat)`. The park boundary is outlined in green. Major cities around the park, including
 ```{r clist6, echo=FALSE, message=FALSE, results='asis'}
-# Create a comma-separated list of places from lightsource$Place
-cat(paste(lightsource$Place, collapse = ", "), "\n")
+cat(paste(lightsource$NAME, collapse = ", "), "\n")
 ```
 are displayed. Nearby major roads and highways are included and intersect the cities. The light pollution model displays higher values in green, red, orange and yellow. Decreasing ALR values are shown from light blue to purple. The nearby cities are within higher ALR values and within the warmer colors. In `r (pcode)`, most of the park is in the lowest ALR color range (`r (parkcolor)`). **~The western section of the park near to the cities are lighter purple, indicating increased light pollution.** 
 :::
 
 `r (pcode)` is **~nearly surrounded by light sources, but at distances great enough to produce minimal predicted impact**. In the largest nearby communities such as 
 ```{r top3clist, echo=FALSE, message=FALSE, results='asis'}
-# Print top 3 nearby cities
 cat(paste(top3cities$NAME, collapse = ", "), "\n")
 ```
 , **~the sky quality is dramatically different than in the park.**. `r (pcode)` is mostly in `r (parkcolor)` color (values around `r (alrmodmed)`), **~which agrees with all the measurements taken inside the park.** 
 ```{r alrmodelloop, echo=FALSE, message=FALSE, results='asis'}
 
-# Loop through the pmodlist to print ALR model information
 for (i in seq_along(pmodlist)) {
   alrmod <- subset(alrmodel, alrmodel$UNIT_CODE == pmodlist[i])
   
-  # Construct the output string with formatted ALR information
   cat(paste("At ", alrmod$UNIT_CODE, ", the mean modeled ALR was ", 
             round(alrmod$MEAN, digits = 2), " (", 
             round(alrmod$MIN, digits = 2), " - ", 
@@ -1167,8 +1261,7 @@ Overall, the night sky conditions at `r (pcode)` are **~very good**. **~The meas
 
 The main impacts to `r (pcode)`’s night sky quality were the light domes from **~[NOTE on authors discretion: The following cities are based on Walker's Law and can be altered to consolidate areas (i.e. the Salt Lake to Provo area) or removed based on context/nuance. Consider all sources of light in the region (i.e. oil and gas development)]**
 ```{r clist7, echo=FALSE, message=FALSE, results='asis'}
-# Create a comma-separated list of places from lightsource$Place
-cat(paste(lightsource$Place, collapse = ", "), "\n")
+cat(paste(lightsource$NAME, collapse = ", "), "\n")
 
 ```
 While impacts from light domes and distant glare sources are **~moderate to low during clear nights, an increase in atmospheric aerosols can significantly alter sky brightness by amplifying the impacts of existing artificial light and further degrading the night sky quality.**
@@ -1228,31 +1321,29 @@ Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Para
 **~Notes to Authors: Typically the field notes need copy editing and/or clarification. Please edit and clarify text, checking for complete sentences, spelling, etc.**
 <br>
 ```{r appenda, echo=FALSE, results='asis'}
-# Create dataset for table data and format on survey date
 appenda <- repdata %>%
   select(DNIGHT, Date, SITE_NAME, NARRATIVE, FULL_LINK, ART_LINK) %>%
-  arrange(Date) %>%
-  mutate(Date = Date)
+  arrange(Date)
 
-# Clean up the NARRATIVE column
 appenda$NARRATIVE <- gsub("NARRATIVE: ", "", appenda$NARRATIVE)
 
-# Loop through each row to create formatted output
-for (i in seq_along(appenda$DNIGHT)) {
-  cat(paste("On", appenda$Date[i], ", at", appenda$SITE_NAME[i], ":", appenda$NARRATIVE[i], "\n"))
-  cat("\n") # Additional line breaks for clarity
-  cat(paste("  - ", "Full resolution mosaic:", appenda$FULL_LINK[i], "\n"))
-  cat("\n") # Additional line breaks for clarity
-  cat(paste("  - ","Estimated artificial skyglow:", appenda$ART_LINK[i], "\n\n"))
+if (nrow(appenda) == 0) {
+  cat("No observation records were found for park '", pcode, "'.\n")
+} else {
+  for (i in seq_along(appenda$DNIGHT)) {
+    cat(paste("On", appenda$Date[i], ", at", appenda$SITE_NAME[i], ":", appenda$NARRATIVE[i], "\n"))
+    cat("\n")
+    cat(paste("  - ", "Full resolution mosaic:",
+              ifelse(is.na(appenda$FULL_LINK[i]), "not available", appenda$FULL_LINK[i]), "\n"))
+    cat("\n")
+    cat(paste("  - ", "Estimated artificial skyglow:",
+              ifelse(is.na(appenda$ART_LINK[i]), "not available", appenda$ART_LINK[i]), "\n\n"))
+  }
 }
 
 ```
 
 
 ```{r remove, include=FALSE}
-# Clear the R environment by removing all objects
 rm(list = ls())
-
 ```
-
-
