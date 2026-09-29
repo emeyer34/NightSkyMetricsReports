@@ -313,6 +313,7 @@ if (is.na(censusyear)) stop("`censusyear` parameter must be numeric.", call. = F
 ```
 
 
+
 ```{r datawrangle, include=FALSE}
 
 pcat <- paste(park, " (", pcode, ")", sep = "")
@@ -409,31 +410,51 @@ if (is.infinite(edate) || is.infinite(ldate) || is.na(edate) || is.na(ldate)) {
 edate <- format(as.Date(edate), "%B %d, %Y")
 ldate <- format(as.Date(ldate), "%B %d, %Y")
 
-# Average zenith luminance and visibility text descriptions
+# --- Average zenith luminance and visibility text descriptions ---
+# NOTE: previously, when zenith_count/stars_count == 0, avebright/avestarvis were
+# still computed as mean(<all NA>, na.rm = TRUE), which silently returns NaN and
+# then gets printed as the literal text "NaN" in the Abstract/Results. Both are
+# now short-circuited to a bracketed placeholder instead.
 zenith_count <- sum(!is.na(repdata$ZENITH_LUM_MSA))
 avebrightvar <- ifelse(zenith_count == 0, "**~not measured**",
                 ifelse(zenith_count == 1, "from a single measurement", "average"))
-# NOTE: na.rm belongs on mean(), not as.numeric() -- as.numeric() has no na.rm
-# argument and silently ignores it, so previously a single NA in this column
-# would make the WHOLE average come back as NA. Fixed below.
-avebright <- format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), 2), nsmall = 2)
+avebright <- if (zenith_count == 0) {
+  "**~[not measured]**"
+} else {
+  format(round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), 2), nsmall = 2)
+}
 
 stars_count <- sum(!is.na(repdata$VISSTARS_PCT))
 avestarvisvar <- ifelse(stars_count == 0, "**~not measured**",
                 ifelse(stars_count == 1, "from a single measurement", "on average"))
-avestarvis <- format(round(mean(as.numeric(repdata$VISSTARS_PCT), na.rm = TRUE), 0), nsmall = 0)
-
-# Average and extreme ALR values
-if (all(is.na(repdata$ALR_POS))) {
-  stop("All ALR_POS values are NA for park '", pcode, "' -- cannot compute ALR summary stats.",
-       call. = FALSE)
+avestarvis <- if (stars_count == 0) {
+  "**~[not measured]**"
+} else {
+  format(round(mean(as.numeric(repdata$VISSTARS_PCT), na.rm = TRUE), 0), nsmall = 0)
 }
-aveALR <- percent(mean(repdata$ALR_POS, na.rm = TRUE))
-minALR <- percent(min(repdata$ALR_POS, na.rm = TRUE))
-maxALR <- percent(max(repdata$ALR_POS, na.rm = TRUE))
-aveALRdec <- mean(repdata$ALR_POS, na.rm = TRUE)
 
-alrcat <- ifelse(aveALRdec <= 0.3, "excellent", ifelse(aveALRdec <= 2.0, "degraded", "significantly degraded"))
+# --- Average and extreme ALR values ---
+# NOTE: previously this called stop() when every ALR_POS value was NA, which
+# aborted the entire render. It now degrades to placeholder text so the rest
+# of the report can still be produced (with a warning flagging the gap).
+alr_missing <- all(is.na(repdata$ALR_POS))
+if (alr_missing) {
+  warning("All ALR_POS values are NA for park '", pcode,
+          "'. ALR summary stats will show placeholder text instead of failing the render.",
+          call. = FALSE)
+  aveALR    <- "**~[not measured]**"
+  minALR    <- "**~[not measured]**"
+  maxALR    <- "**~[not measured]**"
+  aveALRdec <- NA_real_
+  alrcat    <- "**~[not measured]**"
+} else {
+  aveALR    <- percent(mean(repdata$ALR_POS, na.rm = TRUE))
+  minALR    <- percent(min(repdata$ALR_POS, na.rm = TRUE))
+  maxALR    <- percent(max(repdata$ALR_POS, na.rm = TRUE))
+  aveALRdec <- mean(repdata$ALR_POS, na.rm = TRUE)
+  alrcat    <- ifelse(aveALRdec <= 0.3, "excellent",
+                ifelse(aveALRdec <= 2.0, "degraded", "significantly degraded"))
+}
 
 
 ### SQM
@@ -450,59 +471,91 @@ if (sqm_count > 0 && all(is.na(repdata$SQM))) {
   warning("SQM values were present but none could be converted to numeric -- check for unexpected text in the SQM column.",
           call. = FALSE)
 }
-avesqm <- mean(repdata$SQM, na.rm = TRUE)
-avesqm <- format(round(avesqm, 2), nsmall = 2)
+
+# NOTE: previously computed as mean(<all NA>, na.rm = TRUE) -> NaN -> printed as
+# the literal text "NaN" when no SQM was taken. Now guarded.
+avesqm <- if (sqm_count == 0 || all(is.na(repdata$SQM))) {
+  "**~[not measured]**"
+} else {
+  format(round(mean(repdata$SQM, na.rm = TRUE), 2), nsmall = 2)
+}
 
 # horizontal illuminance
-avehor <- format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE), 2), nsmall = 2)
+# NOTE: previously had no guard at all; all-NA HORIZ_MLX silently produced "NaN"
+# in the Methods results text.
+avehor <- if (all(is.na(repdata$HORIZ_MLX))) {
+  "**~[not measured]**"
+} else {
+  format(round(mean(repdata$HORIZ_MLX, na.rm = TRUE), 2), nsmall = 2)
+}
 
 # Number of datasets
 sumdset <- sum(repdata$DSET, na.rm = TRUE)
 
 ### Bortle Class
+# NOTE: previously called stop() when every BORTLE value was NA, aborting the
+# whole render. Now degrades to placeholder text (with a warning) instead.
 repdata$BORTLE <- suppressWarnings(as.numeric(as.character(repdata$BORTLE)))
-if (all(is.na(repdata$BORTLE))) {
-  stop("All BORTLE values are NA for park '", pcode, "' -- cannot determine a modal Bortle class.",
-       call. = FALSE)
-}
-bortle <- mfv(repdata$BORTLE, na_rm = TRUE)
-if (length(bortle) > 1) {
-  bortle <- round(mean(repdata$BORTLE, na.rm = TRUE))
-}
+bortle_missing <- all(is.na(repdata$BORTLE))
 
-bortle_path <- require_file(".//Reference//BortleClass.xlsx", "Bortle class descriptions")
-bortletable <- safe_read_excel(bortle_path, "Bortle class descriptions") %>%
-  filter(class == bortle)
-
-if (nrow(bortletable) == 0) {
-  warning("No entry found in BortleClass.xlsx for Bortle class '", bortle,
-          "'. `bortcat`/`bortdesc` will be blank -- check the reference table.", call. = FALSE)
-  bortcat <- NA_character_
-  bortdesc <- NA_character_
+if (bortle_missing) {
+  warning("All BORTLE values are NA for park '", pcode,
+          "'. Bortle Class reporting will show placeholder text instead of failing the render.",
+          call. = FALSE)
+  bortle   <- "**~[not measured]**"
+  bortcat  <- "**~[not measured]**"
+  bortdesc <- "**~[not measured]**"
 } else {
-  bortcat <- bortletable$category[1]
-  bortdesc <- bortletable$description[1]
+  bortle <- mfv(repdata$BORTLE, na_rm = TRUE)
+  if (length(bortle) > 1) {
+    bortle <- round(mean(repdata$BORTLE, na.rm = TRUE))
+  }
+
+  bortle_path <- require_file(".//Reference//BortleClass.xlsx", "Bortle class descriptions")
+  bortletable <- safe_read_excel(bortle_path, "Bortle class descriptions") %>%
+    filter(class == bortle)
+
+  if (nrow(bortletable) == 0) {
+    warning("No entry found in BortleClass.xlsx for Bortle class '", bortle,
+            "'. `bortcat`/`bortdesc` will show placeholder text -- check the reference table.",
+            call. = FALSE)
+    bortcat  <- "**~[category not found]**"
+    bortdesc <- "**~[description not found]**"
+  } else {
+    bortcat  <- bortletable$category[1]
+    bortdesc <- bortletable$description[1]
+  }
 }
 
 ### NELM
+# NOTE: previously always required NELM.xlsx and, when no NELM was measured,
+# computed avenelm as mean(<all NA>, na.rm = TRUE) -> NaN -> printed as "NaN".
+# Now short-circuits cleanly when there's nothing to measure.
 repdata$ZLM <- suppressWarnings(as.numeric(as.character(repdata$ZLM)))
 nelm_count <- sum(!is.na(repdata$ZLM))
 avenelmvar <- ifelse(nelm_count == 0, "**~[NELM was not taken so delete this or clarify]**",
                 ifelse(nelm_count == 1, "single measurement taken of", "average"))
-avenelm <- mean(repdata$ZLM, na.rm = TRUE)
 
-nelm_path <- require_file(".//Reference//NELM.xlsx", "NELM descriptions")
-nelm_table <- safe_read_excel(nelm_path, "NELM descriptions")
-if (nrow(nelm_table) == 0 || nelm_count == 0) {
-  warning("Could not match a NELM description -- either the reference table is empty or no NELM was measured.",
-          call. = FALSE)
-  nelmcatdesc <- NA_character_
+if (nelm_count == 0) {
+  avenelm <- "**~[not measured]**"
+  nelmcatdesc <- "**~[NELM description not available]**"
 } else {
-  nelmcat <- nelm_table %>%
-    mutate(diffnelm = abs(avenelm - nelm)) %>%
-    arrange(diffnelm) %>%
-    slice(1)
-  nelmcatdesc <- nelmcat$description
+  avenelm <- mean(repdata$ZLM, na.rm = TRUE)
+
+  nelm_path <- require_file(".//Reference//NELM.xlsx", "NELM descriptions")
+  nelm_table <- safe_read_excel(nelm_path, "NELM descriptions")
+
+  if (nrow(nelm_table) == 0) {
+    warning("Could not match a NELM description -- the NELM.xlsx reference table came back empty.",
+            call. = FALSE)
+    nelmcatdesc <- "**~[NELM description not available]**"
+  } else {
+    nelmcat <- nelm_table %>%
+      mutate(diffnelm = abs(avenelm - nelm)) %>%
+      arrange(diffnelm) %>%
+      slice(1)
+    nelmcatdesc <- nelmcat$description
+  }
 }
 
 ### ALR Model Output (park-specific file)
@@ -523,11 +576,13 @@ alrsymb_path <- require_file(".//Reference//ModelSymbology.xlsx", "ALR model sym
 alrsymb <- safe_read_excel(alrsymb_path, "ALR model symbology")
 alrsymb$maincol <- ifelse(alrmodmed > alrsymb$alrlow & alrmodmed <= alrsymb$alrhigh, TRUE, FALSE)
 
+# NOTE: previously fell back to NA_character_ when no color category matched,
+# which then printed as the literal text "NA" in the Figure 5 narrative.
 parkmodelcolor <- alrsymb %>% filter(maincol == TRUE) %>% select(color)
 if (nrow(parkmodelcolor) == 0) {
   warning("No matching color category found in ModelSymbology.xlsx for the modeled ALR median value of ",
-          alrmodmed, ". `parkcolor` will be blank.", call. = FALSE)
-  parkcolor <- NA_character_
+          alrmodmed, ". `parkcolor` will show placeholder text instead of a color name.", call. = FALSE)
+  parkcolor <- "**~[color category not found]**"
 } else {
   parkcolor <- parkmodelcolor$color[1]
 }
@@ -1108,11 +1163,24 @@ ft4
 
 
 ```{r resultwrangletab4, echo=FALSE, ft.align="center"}
-maxvert <- round(max(repdata$MAXVERT_MLX, na.rm = TRUE), digits = 2)
-maxvertref <- ifelse(maxvert < 0.40, "less than", 
-                     ifelse(maxvert == 0.40, "equal to", "greater than"))
+# NOTE: previously max(<all NA>, na.rm = TRUE) returned -Inf when MAXVERT_MLX
+# was entirely missing, which then printed as the literal text "-Inf mlx" in
+# the Sky Quality Indicators section. Now guarded with a placeholder.
+maxvert_missing <- all(is.na(repdata$MAXVERT_MLX))
+if (maxvert_missing) {
+  maxvert    <- "**~[not measured]**"
+  maxvertref <- "**~[not measured]**"
+} else {
+  maxvert <- round(max(repdata$MAXVERT_MLX, na.rm = TRUE), digits = 2)
+  maxvertref <- ifelse(maxvert < 0.40, "less than",
+                       ifelse(maxvert == 0.40, "equal to", "greater than"))
+}
 
-zenskyb <- round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits = 2)
+zenskyb <- if (all(is.na(repdata$ZENITH_LUM_MSA))) {
+  NA_real_
+} else {
+  round(mean(as.numeric(repdata$ZENITH_LUM_MSA), na.rm = TRUE), digits = 2)
+}
 
 ```
 
