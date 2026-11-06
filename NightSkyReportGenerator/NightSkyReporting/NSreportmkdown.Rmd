@@ -3,10 +3,6 @@ output:
   officedown::rdocx_document:
     reference_docx: template.docx
 params:
-  fullname: 
-    label: "Type the park name as you would like in the report (ex.Yosemite National Park)"
-    value: National Park
-    input: text
   alpha_code:
     label: "Enter 4 letter park code of a new park not in the NPS unit decoder in all caps (UNIT):"
     value: ex. LAVO
@@ -36,19 +32,11 @@ params:
     max: 300
     step: 1
     sep: ""
-  soi:
-    label: "Enter the site of interest to highlight in the report (make sure it is how it is spelled out in data exploration report:"
-    value: ex. Lassen Peak
+  selection_file:
+    label: "Optional: path to a saved dataset selection CSV (leave blank to open the selection window)"
+    value: ""
     input: text
-  soidset:
-    label: "Enter the soi dataset from the data exploration report:"
-    value: ex. LAVO070716
-    input: text
-  soidate:
-    label: "Enter the enter soi dataset date:"
-    value: Month DD, YYYY
-    input: text
-       
+
 ---    
 
 ```{r packages, include=FALSE}
@@ -60,7 +48,7 @@ packages <- c("EnvStats", "reshape2", "ggplot2", "ggthemes", "pander", "plyr",
               "readr", "sjmisc", "janitor", "dplyr", "DT", "tmap", 
               "scales", "leaflet", "shiny", "rsconnect", "english", 
               "kableExtra", "statip", "magrittr", "flextable", 
-              "officedown", "officer", "forstringr", "geojsonsf", "sf","sass",
+              "officedown", "officer", "forstringr", "geojsonsf", "jsonlite", "sf","sass",
               "png", "jpeg")
 
 invisible(lapply(packages, function(pkg) {
@@ -76,6 +64,8 @@ invisible(lapply(packages, function(pkg) {
     })
   }
 }))
+
+percent <- function(x, ...) scales::percent(x, big.mark = ",", ...)
 
 still_missing <- packages[!vapply(packages, function(x) requireNamespace(x, quietly = TRUE), logical(1))]
 if (length(still_missing) > 0) {
@@ -247,60 +237,159 @@ apply_sr_table_styles <- function(ft) {
 }
 ```
 
+```{r selectfn, include=FALSE}
+# --- Dataset selection windows (tcltk) ---
+# Window 1 roles: 1) Site of interest (exactly one)  2) Summaries/tables (one or more)  3) Appendix A (one or more)
+# Click to select; Ctrl+click or Shift+click for multiple. If selection_file is supplied, the windows are skipped.
+select_datasets <- function(df, selection_file = "") {
+  df <- df[!duplicated(df$DNIGHT), ]
+  df <- df[order(df$Date), ]
+  ids  <- df$DNIGHT
+  labs <- paste0(df$DNIGHT, " | ", df$SITE_NAME, " | ", format(df$Date, "%b %d, %Y"))
+
+  if (!is.null(selection_file) && nzchar(trimws(selection_file))) {
+    if (!file.exists(selection_file)) stop("selection_file not found: ", selection_file, call. = FALSE)
+    s <- utils::read.csv(selection_file, stringsAsFactors = FALSE)
+    return(list(soi      = s$DNIGHT[s$soi == 1],
+                summary  = s$DNIGHT[s$summary == 1],
+                appendix = s$DNIGHT[s$appendix == 1]))
+  }
+
+  tt   <- tcltk::tktoplevel()
+  done <- tcltk::tclVar("0")
+  tcltk::tkwm.title(tt, paste0("Night Sky dataset selection - ", length(ids), " datasets"))
+  tcltk::tkwm.protocol(tt, "WM_DELETE_WINDOW", function() tcltk::tclvalue(done) <- "2")
+
+  lbs <- list()
+  make_panel <- function(title, mode, key, with_buttons) {
+    fr <- tcltk::tkframe(tt)
+    tcltk::tkgrid(tcltk::tklabel(fr, text = title, font = "Helvetica 10 bold"), columnspan = 2)
+    sb <- tcltk::tkscrollbar(fr, orient = "vertical")
+    lb <- tcltk::tklistbox(fr, selectmode = mode, exportselection = FALSE,
+                           width = 50, height = min(max(length(ids), 8), 25),
+                           yscrollcommand = function(...) tcltk::tkset(sb, ...))
+    tcltk::tkconfigure(sb, command = function(...) tcltk::tkyview(lb, ...))
+    for (l in labs) tcltk::tkinsert(lb, "end", l)
+    tcltk::tkgrid(lb, sb, sticky = "nsew")
+    if (with_buttons) {
+      bf <- tcltk::tkframe(fr)
+      tcltk::tkgrid(tcltk::tkbutton(bf, text = "Select all",
+        command = function() tcltk::tkselection.set(lb, 0, "end")),
+        tcltk::tkbutton(bf, text = "Clear",
+        command = function() tcltk::tkselection.clear(lb, 0, "end")))
+      tcltk::tkgrid(bf, columnspan = 2)
+    }
+    lbs[[key]] <<- lb
+    tcltk::tkpack(fr, side = "left", padx = 5, pady = 5)
+  }
+  make_panel("1) Site of interest (pick ONE)",           "browse",   "soi", FALSE)
+  make_panel("2) Include in summaries / tables / averages", "extended", "sum", TRUE)
+  make_panel("3) Include in Appendix A",                 "extended", "app", TRUE)
+
+  # tkcurselection returns one element per selected row (0-based); parse ALL of them
+  get_sel <- function(lb) {
+    raw <- unlist(strsplit(as.character(tcltk::tkcurselection(lb)), "[[:space:]]+"))
+    raw <- raw[nzchar(raw)]
+    if (length(raw) == 0) integer(0) else as.integer(raw) + 1
+  }
+
+  result <- NULL
+  ok <- tcltk::tkbutton(tt, text = "Run report", command = function() {
+    s_soi <- get_sel(lbs$soi); s_sum <- get_sel(lbs$sum); s_app <- get_sel(lbs$app)
+    problem <- if (length(s_soi) != 1) "Select exactly one site of interest."
+      else if (length(s_sum) == 0) "Select at least one dataset for the summaries."
+      else if (length(s_app) == 0) "Select at least one dataset for Appendix A."
+      else NULL
+    if (!is.null(problem)) {
+      tcltk::tkmessageBox(title = "Selection incomplete", message = problem, icon = "warning")
+    } else {
+      result <<- list(soi = ids[s_soi], summary = ids[s_sum], appendix = ids[s_app])
+      tcltk::tclvalue(done) <- "1"
+    }
+  })
+  tcltk::tkpack(ok, side = "bottom", pady = 8)
+
+  tcltk::tkwait.variable(done)
+  tcltk::tkdestroy(tt)
+  if (is.null(result)) stop("Dataset selection was cancelled.", call. = FALSE)
+  result
+}
+
+# --- Window 2: optional renaming of duplicated site names ---
+# Only datasets (among those selected) whose SITE_NAME is shared with another selected dataset are listed.
+# Edit a name to make that dataset report as a separate site; leave it unchanged to keep it as the same site.
+# Returns a named character vector: names = DNIGHT, values = name to use in the report.
+rename_sites <- function(df, ids) {
+  d <- df[!duplicated(df$DNIGHT) & df$DNIGHT %in% ids, ]
+  d <- d[d$SITE_NAME %in% d$SITE_NAME[duplicated(d$SITE_NAME)], ]
+  if (nrow(d) == 0) return(character(0))
+  d <- d[order(d$SITE_NAME, d$Date), ]
+
+  tt   <- tcltk::tktoplevel()
+  done <- tcltk::tclVar("0")
+  tcltk::tkwm.title(tt, "Rename duplicated site names (optional)")
+  tcltk::tkwm.protocol(tt, "WM_DELETE_WINDOW", function() tcltk::tclvalue(done) <- "1")
+  tcltk::tkgrid(tcltk::tklabel(tt, justify = "left",
+    text = paste0("These datasets share a site name. Edit a name to report that dataset as a separate site.\n",
+                  "Leave a name unchanged to keep it as the same site.")),
+    columnspan = 2, padx = 8, pady = 8)
+  vars <- list()
+  for (i in seq_len(nrow(d))) {
+    v <- tcltk::tclVar(d$SITE_NAME[i])
+    vars[[d$DNIGHT[i]]] <- v
+    lab <- paste0(d$DNIGHT[i], " | ", format(d$Date[i], "%b %d, %Y"), " | lat/long ",
+                  round(as.numeric(d$LATITUDE[i]), 4), ", ", round(as.numeric(d$LONGITUDE[i]), 4),
+                  " | elev ", d$ELEVATION[i], " m")
+    tcltk::tkgrid(tcltk::tklabel(tt, text = lab, anchor = "w"),
+                  tcltk::tkentry(tt, textvariable = v, width = 40), padx = 8, pady = 2, sticky = "w")
+  }
+  tcltk::tkgrid(tcltk::tkbutton(tt, text = "Continue", command = function() tcltk::tclvalue(done) <- "1"),
+                columnspan = 2, pady = 10)
+  tcltk::tkwait.variable(done)
+  new <- vapply(vars, function(v) trimws(tcltk::tclvalue(v)), character(1))
+  tcltk::tkdestroy(tt)
+  new[nzchar(new)]
+}
+```
+
 ```{r params store, include=FALSE}
 # Store parameters from the params list
-park       <- params$fullname
-pcode      <- params$alpha_code
-soi        <- params$soi 
-soidset    <- params$soidset 
-soidate    <- params$soidate 
+# park (full unit name) is looked up from the NPS units list below, using alpha_code
+#pcode      <- params$alpha_code
+selection_file <- params$selection_file # soi, soidset, soidate are set by the dataset selection window below
 sdist      <- params$sdist 
 viirsyear  <- params$viirsyear 
 censusyear <- params$censusyear
 
 # Temp parameters for troubleshooting specific data issues for parks or sites
 # Only need to enter values noted with asterisk *
-# park       <- "Dinosaur National Monument"
-# pcode      <- "DINO" # *
-# soi        <- "Harpers Corner Road" # *
-# soidset    <- "DINO120614" # *
-# soidate    <- "June 13, 2012"
+pcode      <- "BISC" # *
+# selection_file <- "Parks/DINO/DINO_selection.csv" # optional; skips the selection windows
 # sdist      <- "300"
 # viirsyear  <- "2024"
 # censusyear <- "2020"
 
 # --- Validate parameters before running the rest of the report ---
-if (is.null(park) || trimws(park) == "" || trimws(park) == "National Park") {
-  stop("`fullname` parameter is still blank/default. Enter the full park name (e.g. 'Lassen Volcanic National Park').",
-       call. = FALSE)
-}
-
 if (is.null(pcode) || nchar(trimws(pcode)) != 4 || toupper(trimws(pcode)) %in% c("UNIT", "EX. LAVO")) {
   stop("`alpha_code` parameter must be a real 4-letter park code (e.g. 'LAVO'). Received: '", pcode, "'",
        call. = FALSE)
 }
 pcode <- toupper(trimws(pcode))
 
-if (is.null(soi) || trimws(soi) == "" || grepl("^ex\\.", trimws(soi), ignore.case = TRUE)) {
-  stop("`soi` parameter is still the placeholder value. Enter the real site of interest name.", call. = FALSE)
+# --- Look up the park's full name from the NPS units list ---
+npsunits <- tryCatch(
+  jsonlite::fromJSON("https://irmaservices.nps.gov/Unit/v2/api/?format=json"),
+  error = function(e) stop("Could not download the NPS units list from irmaservices.nps.gov. ",
+                           "Check your internet connection. Original error: ", conditionMessage(e), call. = FALSE)
+)
+report_units <- npsunits %>% filter(UnitCode == pcode)
+if (nrow(report_units) == 0) {
+  stop("Park code '", pcode, "' was not found in the NPS units list (npsunits). ",
+       "Check for a typo, or confirm this is a valid 4-letter unit code.", call. = FALSE)
 }
+park  <- report_units$FullName[1]
 
-if (is.null(soidset) || trimws(soidset) == "" || grepl("^ex\\.", trimws(soidset), ignore.case = TRUE)) {
-  stop("`soidset` parameter is still the placeholder value. Enter the real dataset ID (e.g. 'LAVO070716').",
-       call. = FALSE)
-}
-
-if (is.null(soidate) || trimws(soidate) == "" || toupper(trimws(soidate)) == "MONTH DD, YYYY") {
-  stop("`soidate` parameter is still the placeholder value. Enter the real date (e.g. 'June 13, 2012').",
-       call. = FALSE)
-}
-
-parsed_soidate <- suppressWarnings(as.Date(soidate, format = "%B %d, %Y"))
-if (is.na(parsed_soidate)) {
-  warning("`soidate` ('", soidate, "') doesn't match the expected 'Month DD, YYYY' format ",
-          "(e.g. 'June 13, 2012'). The year extraction later in the report may produce NA.",
-          call. = FALSE)
-}
+# soi, soidset and soidate are chosen in the dataset selection window (see datawrangle chunk).
 
 sdist <- suppressWarnings(as.numeric(sdist))
 if (is.na(sdist)) stop("`sdist` parameter must be numeric.", call. = FALSE)
@@ -395,6 +484,54 @@ repdata$ART_LINK <- ifelse(
   paste0("https://www.nps.gov/subjects/nightskies/graphics/", gsub("\\_.*", "_hmrART.jpg", repdata$ARTPATH))
 )
 
+# --- Dataset selection: site of interest, summary datasets, Appendix A datasets ---
+sel <- select_datasets(repdata, selection_file)
+
+unknown <- setdiff(c(sel$soi, sel$summary, sel$appendix), repdata$DNIGHT)
+if (length(unknown) > 0) stop("Unknown dataset IDs in selection: ", paste(unknown, collapse = ", "), call. = FALSE)
+if (length(sel$soi) != 1) stop("Exactly one site of interest dataset is required.", call. = FALSE)
+if (length(sel$summary) == 0) stop("At least one summary dataset is required.", call. = FALSE)
+if (!sel$soi %in% sel$summary)  warning("The site of interest is not in the summary set, so it is excluded from averages and tables.", call. = FALSE)
+if (!sel$soi %in% sel$appendix) warning("The site of interest is not in Appendix A.", call. = FALSE)
+message("Selection - SOI: ", sel$soi, " | Summary: ", paste(sel$summary, collapse = ", "),
+        " | Appendix: ", paste(sel$appendix, collapse = ", "))
+
+# --- Optional site renaming (separates duplicated site names in tables, counts, and Appendix A) ---
+# SITE_NAME_ORIG keeps the NPS name; the light-source table (Table 3) is matched on the original name.
+repdata$SITE_NAME_ORIG <- repdata$SITE_NAME
+if (!is.null(selection_file) && nzchar(trimws(selection_file))) {
+  s_saved <- utils::read.csv(selection_file, stringsAsFactors = FALSE)
+  rename_map <- if ("SITE_NAME_REPORT" %in% names(s_saved)) setNames(s_saved$SITE_NAME_REPORT, s_saved$DNIGHT) else character(0)
+} else {
+  rename_map <- rename_sites(repdata, unique(c(sel$soi, sel$summary, sel$appendix)))
+}
+rename_map <- rename_map[!is.na(rename_map) & nzchar(trimws(rename_map)) & names(rename_map) %in% repdata$DNIGHT]
+if (length(rename_map) > 0) {
+  idx <- match(repdata$DNIGHT, names(rename_map))
+  repdata$SITE_NAME[!is.na(idx)] <- unname(rename_map)[idx[!is.na(idx)]]
+}
+
+sel_dir <- file.path(".", "Parks", pcode)
+dir.create(sel_dir, showWarnings = FALSE, recursive = TRUE)
+utils::write.csv(data.frame(DNIGHT   = repdata$DNIGHT,
+                            SITE_NAME = repdata$SITE_NAME_ORIG,
+                            SITE_NAME_REPORT = repdata$SITE_NAME,
+                            soi      = as.integer(repdata$DNIGHT %in% sel$soi),
+                            summary  = as.integer(repdata$DNIGHT %in% sel$summary),
+                            appendix = as.integer(repdata$DNIGHT %in% sel$appendix)),
+                 file.path(sel_dir, paste0(pcode, "_selection.csv")), row.names = FALSE)
+
+soirow   <- repdata[repdata$DNIGHT == sel$soi, ][1, ]
+soidset  <- sel$soi
+soi      <- soirow$SITE_NAME       # name shown in the report (may be renamed)
+soi_orig <- soirow$SITE_NAME_ORIG  # original NPS name, used to match the light-source table
+soidate  <- sub(" 0", " ", format(soirow$Date, "%B %d, %Y"))
+
+# alldata = all records (SOI figures); appdata = Appendix A; repdata = SUMMARY datasets only
+alldata <- repdata
+appdata <- repdata[repdata$DNIGHT %in% sel$appendix, ]
+repdata <- repdata[repdata$DNIGHT %in% sel$summary, ]
+
 # Count of sites and survey nights
 sitenum <- n_distinct(repdata$SITE_NAME)
 daynum <- repdata %>% count(DNIGHT)
@@ -417,7 +554,7 @@ ldate <- format(as.Date(ldate), "%B %d, %Y")
 # now short-circuited to a bracketed placeholder instead.
 zenith_count <- sum(!is.na(repdata$ZENITH_LUM_MSA))
 avebrightvar <- ifelse(zenith_count == 0, "**~not measured**",
-                ifelse(zenith_count == 1, "from a single measurement", "average"))
+                ifelse(zenith_count == 1, "a measured", "average"))
 avebright <- if (zenith_count == 0) {
   "**~[not measured]**"
 } else {
@@ -534,7 +671,7 @@ if (bortle_missing) {
 repdata$ZLM <- suppressWarnings(as.numeric(as.character(repdata$ZLM)))
 nelm_count <- sum(!is.na(repdata$ZLM))
 avenelmvar <- ifelse(nelm_count == 0, "**~[NELM was not taken so delete this or clarify]**",
-                ifelse(nelm_count == 1, "single measurement taken of", "average"))
+                ifelse(nelm_count == 1, "measured", "average"))
 
 if (nelm_count == 0) {
   avenelm <- "**~[not measured]**"
@@ -601,13 +738,13 @@ sources$walkers <- round((0.01 * sources$P0010001 * sources$d) * 100, digits = 2
 sources$azimuth <- round(ifelse(sources$NEAR_ANGLE > 0, sources$NEAR_ANGLE, (360 + sources$NEAR_ANGLE)), digits = 0)
 
 lightsource <- sources %>%
-  filter(SITE_NAME == soi, DNIGHT == soidset, dist_km < sdist, walkers > 0) %>%
+  filter(SITE_NAME == soi_orig, DNIGHT == soidset, dist_km < sdist, walkers > 0) %>%
   arrange(desc(walkers)) %>%
   top_n(10, walkers) %>%
   select(NAME, P0010001, dist_km, azimuth, walkers)
 
 if (nrow(lightsource) == 0) {
-  warning("No nearby light sources matched SITE_NAME = '", soi, "' and DNIGHT = '", soidset,
+  warning("No nearby light sources matched SITE_NAME = '", soi_orig, "' and DNIGHT = '", soidset,
           "' within ", sdist, " km. Double-check `soi`/`soidset` exactly match the sources table -- ",
           "the city lists and Table 3 will be empty.", call. = FALSE)
 }
@@ -631,6 +768,42 @@ if (is.na(soiyear)) {
   warning("Could not extract a year from `soidate` ('", soidate, "').", call. = FALSE)
 }
 
+```
+
+```{r textvars, include=FALSE}
+# Wording that adapts to one site / one date / one dataset instead of always assuming ranges and averages
+n_sum       <- nrow(repdata)                       # number of summary datasets
+one_set     <- n_sum == 1                          # TRUE -> no averages are described in the text
+single_date <- identical(edate, ldate)             # all summary data collected on one date
+site_word   <- if (sitenum == 1) "site" else "sites"
+sites_txt   <- paste(sitenum, site_word)
+fig1_sites  <- if (sitenum == 1) "site from the current study, which is depicted by a black star marker" else
+  paste0(sitenum, " sites from the current study, which are depicted by black star markers")
+site_listed <- if (sitenum == 1) "The data collection site is listed in Table 2, and located on the map in Figure 1." else
+  "Each data collection site is listed in Table 2, and located on the map in Figure 1."
+
+obs_when       <- if (single_date) paste0("on ", edate) else paste0("on ", daynum, " nights from ", edate, " to ", ldate)
+collect_lead   <- if (single_date) paste0("On ", edate, ", NPS collected") else paste0("Between ", edate, " and ", ldate, ", NPS collected")
+collect_nights <- if (single_date) "" else paste0(daynum, " nights of ")
+sets_txt       <- if (isTRUE(sumdset == 1)) "1 complete data set" else paste(sumdset, "complete data sets")
+sets_each      <- if (isTRUE(sumdset == 1)) "The data set is used" else "Each set is used"
+obs_from       <- if (single_date) paste0("the observation on ", edate) else paste0("the ", daynum, " observation nights")
+all_obs        <- if (single_date && daynum == 1) "in the observation" else "in all observations"
+
+# Average vs. measured descriptors
+avg_adj      <- if (one_set) "measured " else "average "     # "the measured/average horizontal illuminance"
+avebright_a  <- if (zenith_count == 0) avebrightvar else if (zenith_count == 1 || one_set) "a measured" else "an average"
+bortle_phrase <- if (one_set || sum(!is.na(repdata$BORTLE)) == 1) "as the observed Bortle Class value" else "as the most common Bortle Class value"
+
+# ALR: show a single value rather than "x-x (mean=x)" when there is only one dataset or no spread
+alr_txt <- if (isTRUE(alr_missing)) {
+  "not measured"
+} else if (!one_set && !identical(minALR, maxALR)) {
+  paste0(minALR, "-", maxALR, " (mean=", aveALR, ")")
+} else {
+  aveALR
+}
+alr_onavg <- if (one_set) "" else " on average"
 ```
 
 
@@ -680,9 +853,9 @@ User Note (optional): see the First/Title page section of the online user guide 
 
 :::{custom-style="sr Normal"}
 # Abstract
-This report characterizes night sky conditions in `r (pcat)` using measurements made in the park unit and models of regional conditions based on satellite data. The National Park Service’s Natural Sounds and Night Skies Division obtained night sky imagery at `r (sitenum)` sites. These ground-based observations were collected on `r (daynum)` nights from `r (edate)` to `r (ldate)`. Satellite data from `r (viirsyear)` was used to create a map of modeled night sky conditions in and around the park.
+This report characterizes night sky conditions in `r (pcat)` using measurements made in the park unit and models of regional conditions based on satellite data. The National Park Service’s Natural Sounds and Night Skies Division obtained night sky imagery at `r (sites_txt)`. These ground-based observations were collected `r (obs_when)`. Satellite data from `r (viirsyear)` was used to create a map of modeled night sky conditions in and around the park.
 
-The sky overhead remains **~[insert manual description]** with an `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^. We estimate more than `r (avestarvis)`% naked eye stars remained visible under the measured sky brightness, providing a **~[insert manual description]** opportunity to view the natural night sky from the park during a cloudless moonless night. The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions on average.
+The sky overhead remains **~[insert manual description]** with `r (avebright_a)` zenith brightness of `r (avebright)` mag/arcsec^2^. We estimate more than `r (avestarvis)`% naked eye stars remained visible under the measured sky brightness, providing a **~[insert manual description]** opportunity to view the natural night sky from the park during a cloudless moonless night. The whole sky over `r (pcode)` is `r (alr_txt)` brighter than average natural levels, indicating `r (alrcat)` dark sky conditions`r (alr_onavg)`.
 
 In `r (pcode)`, we classified the sky as Bortle Class `r (bortle)`: `r (bortcat)`, based on the visibility of astronomical objects. Under this Bortle condition, **~[insert description, ex. the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.]** The `r (avenelmvar)` naked eye limiting magnitude (NELM) is `r (avenelm)`, which is approaching `r (nelmcatdesc)`. Our Sky Quality Meter (SQM) measurements `r (avesqmvar)` `r (avesqm)` mag/arcsec^2^, **~[example text: indicating the zenith is darker than what we can accurately measure with a SQM.]**  The main influence on `r (pcode)`’s night sky quality, ordered by estimated brightness of light domes, were from **~[NOTE on authors discretion: The following cities are based on Walker's Law and can be altered to consolidate areas (i.e. the Salt Lake to PRovo area) or removed based on context/nuance]**
 ```{r clist1,echo=FALSE, message=FALSE,results = 'asis'}
@@ -787,7 +960,7 @@ insert_centered_image(genmap_path, width_in = content_width_in, label = "Figure 
 ```
 
 :::{custom-style="sr Figure caption"}
-Figure 1. Geographic location of the park, including the `r (sitenum)` sites from the current study are depicted by black star markers.  `r (park)` is located near **~[Enter broad geographic description here]** . In general, light sources within 300 km could be visible and have the potential to brighten the night sky.
+Figure 1. Geographic location of the park, including the `r (fig1_sites)`.  `r (park)` is located near **~[Enter broad geographic description here]** . In general, light sources within 300 km could be visible and have the potential to brighten the night sky.
 :::
 
 :::{custom-style="sr Image credit"}
@@ -826,7 +999,7 @@ Figure 2. A photograph of a typical National Park Service Night Skies Program ca
 :::
 
 :::{custom-style="sr Normal"}
-Between `r (edate)` to `r (ldate)`, NPS collected `r (daynum)` nights of ground-based CCD camera data in `r (pcode)`, yielding `r (sumdset)` complete data sets. Each set is used to generate a panoramic image of the night sky. Table 1 lists the details about each data collection event, including the date, collection site, camera used, number of data sets collected, and observers.
+`r (collect_lead)` `r (collect_nights)`ground-based CCD camera data in `r (pcode)`, yielding `r (sets_txt)`. `r (sets_each)` to generate a panoramic image of the night sky. Table 1 lists the details about each data collection event, including the date, collection site, camera used, number of data sets collected, and observers.
 :::
 
 :::{custom-style="sr Table caption"}
@@ -865,11 +1038,11 @@ flextable(tab1) %>%
 :::{custom-style="sr Normal"}
 
 ## Locating Data Collection Sites
-These observations with the CCD camera are carried out at specific sites in or near the park. In general, higher elevation sites free from nearby obstructions are selected because they provide a clear view of the sky down to the natural horizon. The sites also need to be free from direct glare to prevent image saturation. Additional selection criteria include the accessibility and proximity of the site to stargazing locations, sensitive ecosystems, critical habitat, and future developments. Often, one clear site is sufficient to capture the representative conditions across the entire park. When multiple sites are selected, their placement is chosen strategically to capture the full range of sky quality present.**~[Authors discretion to convey here the reasons for data collection (such as project goals)]** Each data collection site is listed in Table 2, and located on the map in Figure 1.
+These observations with the CCD camera are carried out at specific sites in or near the park. In general, higher elevation sites free from nearby obstructions are selected because they provide a clear view of the sky down to the natural horizon. The sites also need to be free from direct glare to prevent image saturation. Additional selection criteria include the accessibility and proximity of the site to stargazing locations, sensitive ecosystems, critical habitat, and future developments. Often, one clear site is sufficient to capture the representative conditions across the entire park. When multiple sites are selected, their placement is chosen strategically to capture the full range of sky quality present.**~[Authors discretion to convey here the reasons for data collection (such as project goals)]** `r (site_listed)`
 
 
 :::{custom-style="sr Table caption"}
-Table 2. Data collection sites at `r (park)`.
+Table 2. Data collection `r (site_word)` at `r (park)`.
 :::
 
 
@@ -967,7 +1140,7 @@ The ground-based observations yield the calibrated panoramic images of the night
 
 
 ```{r fig3, echo=FALSE}
-fig3 <- repdata %>%
+fig3 <- alldata %>%
   select(DNIGHT, SITE_NAME, FULL_LINK) %>%
   filter(DNIGHT == soidset)
 
@@ -999,7 +1172,7 @@ cat(paste(lightsource$NAME, collapse = ", "), "\n")
 <br>
 
 ```{r fig4, echo=FALSE}
-fig4 <- repdata %>%
+fig4 <- alldata %>%
   select(DNIGHT, SITE_NAME, ART_LINK) %>%
   filter(DNIGHT == soidset)
 
@@ -1025,9 +1198,7 @@ Figure 4. Panoramic image of the night sky from the `r (soi)` site on `r (soidat
 ```{r clist5, echo=FALSE, message=FALSE, results='asis'}
 cat(paste(lightsource$NAME, collapse = ", "), "\n")
 ```
-.  
-
-In the image, the largest and brightest light dome, or cluster of light domes, is from **[Enter city or cities]**. The light dome from **[enter more observations beyond this point. NOTE: consider adding the azimuth and location in the image (i.e. center or right or left) to help parks interpret the light domes]**. 
+. In the image, the largest and brightest light dome, or cluster of light domes, is from **[Enter city or cities]**. The light dome from **[enter more observations beyond this point. NOTE: consider adding the azimuth and location in the image (i.e. center or right or left) to help parks interpret the light domes]**. 
 :::
 
 In Table 3, we list the nearby cities from the `r (soi)` site during the data set collected on `r (soidate)` ranked according to their brightness calculated by Walker’s Law. As noted in the Methods chapter, because Walker’s Law is a simple calculation, the order of the modeled skyglow might not perfectly match the order of the imaged light dome brightness.
@@ -1079,7 +1250,7 @@ Based on the observed panoramic images, we report five indicators (Duriscoe, 201
 
 Illuminance is the amount of visible light incident on a unit surface area. It is more sensitive to light striking closer to perpendicular to the surface. Specifically, the impact from a light source is weighted by the cosine of its angle of incidence. For example, the weighting factors for sources incident perpendicular to the surface, 60 degrees away, and 90 degrees away (parallel to the surface) are 1, 0.5, and 0, respectively.
 
-Horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From the `r (daynum)` observation nights in `r (pcode)`, the average horizontal illuminance of `r (avehor)` (Table 4) **~[NOTE: summarize from Table 4 here:is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent the natural illumination on the plane.]**
+Horizontal illuminance describes the amount of light landing on a horizontal surface. It provides the illuminance measurement of the entire sky at a glance but is not sensitive to skyglow near the horizon. From `r (obs_from)` in `r (pcode)`, the `r (avg_adj)`horizontal illuminance of `r (avehor)` (Table 4) **~[NOTE: summarize from Table 4 here:is only slightly higher than the natural reference. The measured horizontal illuminance values indicate the park preserves to a large extent the natural illumination on the plane.]**
 
 
 :::
@@ -1142,7 +1313,7 @@ if (length(urbannum) == 0 || length(natnum) == 0) {
 
 ft4 <- compose(ft4, i = urbannum, j = 1, part = "body", value = as_paragraph("Urban Sky", as_sup(" A")))
 ft4 <- compose(ft4, i = natnum, j = 1, part = "body", value = as_paragraph("Natural Sky", as_sup(" B")))
-ft4 <- compose(ft4, i = 1, j = 7, part = "header", value = as_paragraph("Zenith \n Luminance \n (mag/arcsec", as_sup("2"), ")"))
+ft4 <- compose(ft4, i = 1, j = 6, part = "header", value = as_paragraph("Zenith \n Luminance \n (mag/arcsec", as_sup("2"), ")"))
 
 ft4 <- apply_sr_table_styles(ft4)
 
@@ -1187,18 +1358,18 @@ zenskyb <- if (all(is.na(repdata$ZENITH_LUM_MSA))) {
 
 :::{custom-style="sr Normal"}
 
-Vertical illuminance describes the light striking a vertical surface. Vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From the `r (daynum)` observation nights in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx in all observations. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low, providing a refuge for crepuscular and nocturnal species in the park.**
+Vertical illuminance describes the light striking a vertical surface. Vertical illuminance better reflects the brightness of sources near the horizon. Since a vertical surface can be held facing many different directions, we report the maximum vertical illuminance. Note that the maximum vertical illuminance can be greatly influenced by natural sources such as the Milky Way, zodiacal light, and airglow. From `r (obs_from)` in `r (pcode)`, the maximum vertical illuminance from all sources is `r (maxvert)` mlx, which is `r (maxvertref)` the referenced natural value of 0.40 mlx `r (all_obs)`. This result shows how artificial lights have a measurable effect in brightening the night sky along the horizon. **~Nonetheless, the overall illuminance level is still low, providing a refuge for crepuscular and nocturnal species in the park.**
 
 Zenith sky brightness is measured within a 1-square degree area directly overhead. Zenith usually is the darkest part of the sky since all light domes are located along the horizon. For reference, the darkest natural sky can reach V-band brightness of 22 mag/arcsec^2^, and the brightest part of the Milky Way is about 20 mag/arcsec^2^. When zenith sky brightness reaches 20.5 mag/arcsec^2^ the Milky Way is generally no longer visible to the naked eye, indicating degraded sky quality (Falchi et al. 2016).  Overall, the photometric measurements in `r (pcode)` show the zenith is **~very dark**, and skyglow at zenith is **~not measurable**. The sky overhead remains **~pristine** with `r (avebrightvar)` zenith brightness of `r (avebright)` mag/arcsec^2^.
 
-Percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible.  From the `r (daynum)` observation nights in `r (pcode)`, we estimate `r (avestarvisvar)`, `r (avestarvis)`% of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
+Percent visible star metric concerns the percentage of stars that are visible to the naked eye after accounting for the influence of skyglow. On average, there are about 4000 stars visible to the naked eye under the natural dark sky. This metric estimates the direct impact of skyglow to human visual observation of stars and night sky features. When calculating this metric, we have taken the atmospheric transparency and the natural sky brightness at the time of the observation into account but do not consider atmospheric turbulence, which may influence the faintest stars visible.  From `r (obs_from)` in `r (pcode)`, we estimate `r (avestarvisvar)`, `r (avestarvis)`% of stars were still visible during data collection, providing an **~outstanding** opportunity to observe the natural night sky from the park.
 
-All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate degraded sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible (categories modified from Duriscoe et al. 2018). The whole sky over `r (pcode)` is `r (minALR)`-`r (maxALR)` (mean=`r (aveALR)`) brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
+All-sky light pollution ratio (ALR) is an index of total skyglow. We calculate it by taking the total brightness from the skyglow and dividing by the brightness of the natural dark sky. We always use a constant value of 250 microcandela per square meter as the brightness of the natural dark sky in this calculation to ensure equitable comparison of ALR values across data sets. If the sky is completely free of skyglow, this ratio would be zero. Generally, ALR values less than 0.3 (30% brighter than natural) indicate excellent conditions, 0.3 to 2.0 (30-200%) indicate degraded sky quality (though areas of the sky may reveal important natural features), and greater than 2.0 (>200%) indicate the natural night sky is not readily visible (categories modified from Duriscoe et al. 2018). The whole sky over `r (pcode)` is `r (alr_txt)` brighter than average natural levels, indicating `r (alrcat)` dark sky conditions.
 
 
 ## Metrics from ground based observations
 
-Whenever possible, NSNSD complements our CCD camera observations with visual assessments of Bortle Class and naked eye limiting magnitude (NELM) as well as readings with a Unihedron Sky Quality Meter (SQM) (Table 5). A description for each of these metrics is provided below. Indicators derived from these ground-based observations indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` as the most common Bortle Class value (`r (bortcat)`; Table 5). A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` **~add description here summarizing Bortle class, ex. Under this Bortle condition, the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.** 
+Whenever possible, NSNSD complements our CCD camera observations with visual assessments of Bortle Class and naked eye limiting magnitude (NELM) as well as readings with a Unihedron Sky Quality Meter (SQM) (Table 5). A description for each of these metrics is provided below. Indicators derived from these ground-based observations indicate **~only a very small amount of impact** from light pollution has been measured in these sky luminance data. Bortle Class is a nine-level numeric scale that measures the night sky’s brightness of a particular location based on visible sky objects (Bortle, 2001). The rating of one indicates pristine night sky that is completely free of skyglow, and nine indicates heavily light polluted sky often found in the inner cities. In `r (pcode)`, we classified `r (bortle)` `r (bortle_phrase)` (`r (bortcat)`; Table 5). A general description of Bortle `r (bortle)` conditions is `r (bortdesc)` **~add description here summarizing Bortle class, ex. Under this Bortle condition, the complexity of the Milky Way is characterized by visible dust lanes interspersed with diffuse stellar light.** 
 
 
 :::{custom-style="sr Table caption"}
@@ -1389,7 +1560,7 @@ Patat, F. 2008. The dancing sky: 6 years of night-sky observations at Cerro Para
 **~Notes to Authors: Typically the field notes need copy editing and/or clarification. Please edit and clarify text, checking for complete sentences, spelling, etc.**
 <br>
 ```{r appenda, echo=FALSE, results='asis'}
-appenda <- repdata %>%
+appenda <- appdata %>%
   select(DNIGHT, Date, SITE_NAME, NARRATIVE, FULL_LINK, ART_LINK) %>%
   arrange(Date)
 
